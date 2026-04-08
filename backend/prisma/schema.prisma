@@ -38,6 +38,7 @@ model events {
   totalSeats       Int
   availableSeats   Int
   eventOrganizerId String
+
   created_at       DateTime       @default(now())
   deleted_at       DateTime?
   updated_at       DateTime

@@ -1,53 +1,46 @@
-import express, { type Request, type Response } from "express";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import "dotenv/config";
+import 'dotenv/config';
+import express, { type Request, type Response, type NextFunction } from 'express';
+import authRoutes from './src/routes/authRoutes';
+import { AppError } from './src/errors/app.error';
+import { prisma } from './src/configs/prisma';
 
 const app = express();
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is not set. Please add it to your environment variables.");
-}
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: databaseUrl }),
-});
+const port = Number(process.env.PORT ?? 3000);
 
 app.use(express.json());
 
-app.get("/", (req: Request, res: Response) => {
-  res.send("API jalan 🚀");
+app.get('/', (_req: Request, res: Response) => {
+  return res.send('API is running');
 });
 
-app.get("/users", async (req: Request, res: Response) => {
-  const data = await prisma.user.findMany();
-  res.json(data);
+app.get('/users', async (_req: Request, res: Response) => {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      email: true,
+      bio: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+      deletedAt: true,
+    },
+  });
+
+  return res.status(200).json(users);
 });
 
-app.post("/users", async (req: Request, res: Response) => {
-  const { name, username, email, password, role } = req.body as {
-    name: string;
-    username: string;
-    email: string;
-    password: string;
-    role: "CUSTOMER" | "EVENT_ORGANIZER";
-  };
+app.use('/auth', authRoutes);
 
-  if (!name || !username || !email || !password || !role) {
-    return res.status(400).json({ error: "name, username, email, password, dan role wajib diisi" });
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({ message: err.message });
   }
 
-  try {
-    const user = await prisma.user.create({
-      data: { name, username, email, password, role },
-    });
-    res.json(user);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  return res.status(500).json({ message: 'Internal server error' });
 });
 
-app.listen(3000, () => {
-  console.log("Server jalan di http://localhost:3000");
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
 });
