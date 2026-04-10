@@ -44,6 +44,8 @@ model events {
   event_images     event_images[]
   users            User           @relation(fields: [eventOrganizerId], references: [id])
   orders           orders[]
+
+  @@map("events")
 }
 
 model orders {
