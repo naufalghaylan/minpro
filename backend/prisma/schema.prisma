@@ -7,19 +7,23 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String    @db.VarChar(255)
-  username  String    @unique @db.VarChar(100)
-  email     String    @unique @db.VarChar(100)
-  password  String    @db.VarChar(500)
-  bio       String?   @db.VarChar(500)
-  role      RoleType
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  events    events[]
-  orders    orders[]
-  wallets   wallets?
+  id           String    @id @default(uuid())
+  name         String    @db.VarChar(255)
+  username     String    @unique @db.VarChar(100)
+  email        String    @unique @db.VarChar(100)
+  password     String    @db.VarChar(500)
+  bio          String?   @db.VarChar(500)
+  role         RoleType
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  referralCode String    @unique @db.VarChar(50)
+  referredBy   String?
+  referredByUser User?   @relation("UserReferral", fields: [referredBy], references: [id])
+  referrals    User[]    @relation("UserReferral")
+  events       events[]
+  orders       orders[]
+  wallets      wallets?
 
   @@map("users")
 }

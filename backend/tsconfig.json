@@ -13,6 +13,6 @@
     "types": ["node"],
     "sourceMap": true
   },
-  "include": ["index.ts", "prisma.config.ts", "src/**/*.ts"],
+  "include": ["index.ts", "prisma.config.ts", "src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

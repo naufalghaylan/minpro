@@ -25,6 +25,9 @@ app.get('/users', async (_req: Request, res: Response) => {
       createdAt: true,
       updatedAt: true,
       deletedAt: true,
+      referralCode: true,
+      referredBy: true,
+      // password is intentionally excluded
     },
   });
 
