@@ -42,13 +42,14 @@ model events {
   totalSeats       Int
   availableSeats   Int
   eventOrganizerId String
-
   created_at       DateTime       @default(now())
   deleted_at       DateTime?
   updated_at       DateTime
   event_images     event_images[]
   users            User           @relation(fields: [eventOrganizerId], references: [id])
   orders           orders[]
+
+  @@map("events")
 }
 
 model orders {
