@@ -24,6 +24,7 @@ model User {
   users        User?     @relation("usersTousers", fields: [referredBy], references: [id])
   other_users  User[]    @relation("usersTousers")
   wallets      wallets?
+  coupons      coupons[]
 
   @@index([referredBy])
   @@map("users")
@@ -64,10 +65,31 @@ model orders {
 }
 
 model wallets {
-  id      String @id @default(uuid())
-  userId  String @unique
-  balance Float
-  users   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  usedAt    DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model coupons {
+  id        String       @id @default(uuid())
+  userId    String
+  code      String?      @unique @db.VarChar(50)
+  source    CouponSource
+  amount    Int
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  users     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("coupons")
 }
 
 enum RoleType {
@@ -82,4 +104,11 @@ enum StatusOrder {
   EXPIRED
   DONE
   PAID
+}
+
+enum CouponSource {
+  REFERRAL_SIGNUP
+  EVENT_PROMOTION
+  ORDER_REFUND
+  MANUAL_GRANT
 }
