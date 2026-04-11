@@ -11,8 +11,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "sourceMap": true,
-    "ignoreDeprecations": "6.0",
+    "sourceMap": true
   },
   "include": ["index.ts", "prisma.config.ts", "src/**/*.ts", "src/**/*.d.ts"],
   "include": ["index.ts", "prisma.config.ts"],
