@@ -92,13 +92,13 @@ app.post('/orders', async (req: Request, res: Response) => {
 
     const order = await prisma.orders.create({
       data: {
-        id : "cekok",
+        // id: otomatis oleh Prisma
         customerId,
         eventId,
-        quantity : Number(quantity),
+        quantity: Number(quantity),
         totalAmount,
         status: 'PENDING',
-        buktiTf : Number(buktiTf),
+        paymentProof: buktiTf ? String(buktiTf) : undefined,
       },
     });
 
@@ -113,7 +113,7 @@ app.post('/orders', async (req: Request, res: Response) => {
 app.get('/orders', async (_req: Request, res: Response) => {
   const data = await prisma.orders.findMany({
     include: {
-      user: true,
+      users: true,
       event: true,
     },
   });
@@ -121,20 +121,20 @@ app.get('/orders', async (_req: Request, res: Response) => {
   res.json(data);
 });
 // ✅ PATCH ORDER
-app.patch('/orders/:id', async (req: Request, res: Response) => {
-  const id = Number(req.params.id);
-  const { buktiTf } = req.body;
+// app.patch('/orders/:id', async (req: Request, res: Response) => {
+//   const id = req.params.id as string;
+//   const { buktiTf } = req.body;
 
-  const order = await prisma.orders.update({
-    where: { id },
-    data: {
-      buktiTf,
-      status: 'PAID',
-    },
-  });
+//   const order = await prisma.orders.update({
+//     where: { id },
+//     data: {
+//       paymentProof: buktiTf ? String(buktiTf) : undefined,
+//       status: 'PAID',
+//     },
+//   });
 
-  res.json(order);
-});
+//   res.json(order);
+// });
 // ✅ GET EVENT DETAIL (PISAH)
 app.get('/events/:id', async (req: Request, res: Response) => {
   const id = req.params.id as string;
