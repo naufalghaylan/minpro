@@ -1,6 +1,15 @@
 import { RoleType } from '@prisma/client';
 import { z } from 'zod';
 
+const optionalReferralCode = z.preprocess((value) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue.length > 0 ? trimmedValue : undefined;
+}, z.string().min(1, 'Referral code is invalid').max(50, 'Referral code is too long').optional());
+
 export const registerSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   username: z.string().trim().min(3, 'Username must be at least 3 characters').max(100, 'Username is too long'),
@@ -8,6 +17,7 @@ export const registerSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   bio: z.string().trim().max(500, 'Bio must be at most 500 characters').optional(),
   role: z.enum([RoleType.CUSTOMER, RoleType.EVENT_ORGANIZER]).optional().default(RoleType.CUSTOMER),
+  referralCode: optionalReferralCode,
 });
 
 export const loginSchema = z.object({

@@ -25,12 +25,18 @@ model User {
   orders       orders[]
   wallets      wallets?
 
-  @@index([referredBy])
   @@map("users")
 }
 
+model event_images {
+  id      String @id
+  eventId String
+  url     String
+  events  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
 model events {
-  id               String         @id @default(uuid())
+  id               String         @id
   name             String         @unique @db.VarChar(255)
   price            Float
   totalSeats       Int
@@ -38,35 +44,29 @@ model events {
   eventOrganizerId String
   created_at       DateTime       @default(now())
   deleted_at       DateTime?
-  updated_at       DateTime       @updatedAt
+  updated_at       DateTime
   event_images     event_images[]
   users            User           @relation(fields: [eventOrganizerId], references: [id])
   orders           orders[]
-}
 
-model event_images {
-  id      String @id @default(uuid())
-  eventId String
-  url     String
-  events  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  @@map("events")
 }
 
 model orders {
-  id          String      @id  @default(uuid())
+  id          String      @id
   customerId  String
   eventId     String
   quantity    Int
   totalAmount Float
   status      StatusOrder @default(PENDING)
   createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  paymentProof String?   @db.VarChar(500)
+  updatedAt   DateTime
   users       User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  event       events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  events      events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model wallets {
-  id      String @id @default(uuid())
+  id      String @id
   userId  String @unique
   balance Float
   users   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
