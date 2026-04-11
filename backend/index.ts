@@ -10,7 +10,23 @@ const port = Number(process.env.PORT ?? 3000);
 
 app.use(cors({ origin: 'http://localhost:5173', credentials:  true , methods: ['GET', 'POST', 'PUT', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization'] }));
 
-app.use(express.json());
+app.get('/users', async (_req: Request, res: Response) => {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      username: true,
+      email: true,
+      bio: true,
+      role: true,
+      createdAt: true,
+      updatedAt: true,
+      deletedAt: true,
+      referralCode: true,
+      referredBy: true,
+      // password is intentionally excluded
+    },
+  });
 
 
 

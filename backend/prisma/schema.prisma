@@ -19,10 +19,10 @@ model User {
   deletedAt    DateTime?
   referralCode String    @unique @db.VarChar(50)
   referredBy   String?
+  referredByUser User?   @relation("UserReferral", fields: [referredBy], references: [id])
+  referrals    User[]    @relation("UserReferral")
   events       events[]
   orders       orders[]
-  users        User?     @relation("usersTousers", fields: [referredBy], references: [id])
-  other_users  User[]    @relation("usersTousers")
   wallets      wallets?
 
   @@index([referredBy])
