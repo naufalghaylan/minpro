@@ -57,10 +57,8 @@ model orders {
   eventId     String
   quantity    Int
   totalAmount Float
-  status      StatusOrder @default(PENDING)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  paymentProof String?   @db.VarChar(500)
   users       User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   event       events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }

@@ -1,23 +1,38 @@
 import 'dotenv/config';
 import express, { type Request, type Response, type NextFunction } from 'express';
+import cors from 'cors';
+
 import authRoutes from './src/routes/authRoutes';
 import { AppError } from './src/errors/app.error';
 import { prisma } from './src/configs/prisma';
-import cors from 'cors';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 
-app.use(cors({ origin: 'http://localhost:5173', credentials:  true , methods: ['GET', 'POST', 'PUT', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization'] }));
+// ==================
+// MIDDLEWARE
+// ==================
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 app.use(express.json());
 
-
-
+// ==================
+// ROOT
+// ==================
 app.get('/', (_req: Request, res: Response) => {
-  return res.send('API is running');
+  return res.send('API is running 🚀');
 });
 
+// ==================
+// USERS
+// ==================
 app.get('/users', async (_req: Request, res: Response) => {
   const users = await prisma.user.findMany({
     select: {
@@ -32,17 +47,17 @@ app.get('/users', async (_req: Request, res: Response) => {
       deletedAt: true,
       referralCode: true,
       referredBy: true,
-      // password is intentionally excluded
     },
   });
 
   return res.status(200).json(users);
 });
 
+// ==================
+// EVENTS
+// ==================
 
-// Endpoint untuk mengambil semua event beserta nama event organizer
-
-// Endpoint untuk mengambil semua event beserta nama event organizer
+// 🔍 GET ALL EVENTS
 app.get('/events', async (_req: Request, res: Response) => {
   try {
     const data = await prisma.events.findMany({
@@ -50,7 +65,7 @@ app.get('/events', async (_req: Request, res: Response) => {
         users: {
           select: { name: true },
         },
-        event_images: true, // 🔥 ini ambil semua gambar
+        event_images: true,
       },
     });
 
@@ -63,23 +78,90 @@ app.get('/events', async (_req: Request, res: Response) => {
   }
 });
 
-app.use('/auth', authRoutes);
+// 🔍 GET EVENT DETAIL
+// app.get('/events/:id', async (req: Request, res: Response) => {
+//   const id = req.params.id;
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  if (err instanceof AppError) {
-    return res.status(err.statusCode).json({ message: err.message });
+//   const event = await prisma.events.findUnique({
+//     where: { id },
+//     include: {
+//       event_images: true,
+//       users: {
+//         select: { name: true },
+//       },
+//     },
+//   });
+
+//   if (!event) {
+//     return res.status(404).json({ message: 'Event not found' });
+//   }
+
+//   res.json(event);
+// });
+
+// ➕ CREATE EVENT
+app.post('/events', async (req: Request, res: Response) => {
+  try {
+    const { name, price, totalSeats, eventOrganizerId, images } = req.body;
+
+    if (!name || !price || !totalSeats || !eventOrganizerId) {
+      return res.status(400).json({
+        message: 'Semua field wajib diisi',
+      });
+    }
+
+    const newEvent = await prisma.events.create({
+      data: {
+        name,
+        price: Number(price),
+        totalSeats: Number(totalSeats),
+        availableSeats: Number(totalSeats),
+        eventOrganizerId,
+
+        event_images: {
+          create:
+            images?.map((url: string) => ({
+              url,
+            })) || [],
+        },
+      },
+      include: {
+        event_images: true,
+        users: {
+          select: { name: true },
+        },
+      },
+    });
+
+    res.status(201).json({
+      message: 'Event berhasil dibuat',
+      data: newEvent,
+    });
+  } catch (error: any) {
+    console.error(error);
+
+    if (error.code === 'P2002') {
+      return res.status(400).json({
+        message: 'Nama event sudah digunakan',
+      });
+    }
+
+    res.status(500).json({
+      message: 'Error creating event',
+      error: error.message,
+    });
   }
-
-  return res.status(500).json({ message: 'Internal server error' });
 });
 
+// ==================
+// ORDERS
+// ==================
 
-
+// ➕ CREATE ORDER
 app.post('/orders', async (req: Request, res: Response) => {
   try {
-    const { customerId, eventId, quantity, buktiTf } = req.body;
+    const { customerId, eventId, quantity } = req.body;
 
-    // ambil event untuk harga
     const event = await prisma.events.findUnique({
       where: { id: eventId },
     });
@@ -88,17 +170,30 @@ app.post('/orders', async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
+    if (event.availableSeats < quantity) {
+      return res.status(400).json({
+        message: 'Seat tidak cukup',
+      });
+    }
+
     const totalAmount = event.price * quantity;
 
-    const order = await prisma.orders.create({
+  const order = await prisma.orders.create({
+  data: {
+    customerId,
+    eventId,
+    quantity: Number(quantity),
+    totalAmount,
+  },
+});
+
+    // 🔥 kurangi seat otomatis
+    await prisma.events.update({
+      where: { id: eventId },
       data: {
-        // id: otomatis oleh Prisma
-        customerId,
-        eventId,
-        quantity: Number(quantity),
-        totalAmount,
-        status: 'PENDING',
-        paymentProof: buktiTf ? String(buktiTf) : undefined,
+        availableSeats: {
+          decrement: Number(quantity),
+        },
       },
     });
 
@@ -110,6 +205,8 @@ app.post('/orders', async (req: Request, res: Response) => {
     });
   }
 });
+
+// 🔍 GET ORDERS
 app.get('/orders', async (_req: Request, res: Response) => {
   const data = await prisma.orders.findMany({
     include: {
@@ -120,42 +217,26 @@ app.get('/orders', async (_req: Request, res: Response) => {
 
   res.json(data);
 });
-// ✅ PATCH ORDER
-// app.patch('/orders/:id', async (req: Request, res: Response) => {
-//   const id = req.params.id as string;
-//   const { buktiTf } = req.body;
 
-//   const order = await prisma.orders.update({
-//     where: { id },
-//     data: {
-//       paymentProof: buktiTf ? String(buktiTf) : undefined,
-//       status: 'PAID',
-//     },
-//   });
+// ==================
+// AUTH ROUTES
+// ==================
+app.use('/auth', authRoutes);
 
-//   res.json(order);
-// });
-// ✅ GET EVENT DETAIL (PISAH)
-app.get('/events/:id', async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-
-  const event = await prisma.events.findUnique({
-    where: { id },
-    include: {
-      event_images: true,
-      users: {
-        select: { name: true },
-      },
-    },
-  });
-
-  if (!event) {
-    return res.status(404).json({ message: 'Event not found' });
+// ==================
+// ERROR HANDLER
+// ==================
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({ message: err.message });
   }
 
-  res.json(event);
+  return res.status(500).json({ message: 'Internal server error' });
 });
 
+// ==================
+// SERVER
+// ==================
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
