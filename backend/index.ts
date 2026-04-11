@@ -25,10 +25,35 @@ app.get('/users', async (_req: Request, res: Response) => {
       createdAt: true,
       updatedAt: true,
       deletedAt: true,
+      referralCode: true,
+      referredBy: true,
+      // password is intentionally excluded
     },
   });
 
   return res.status(200).json(users);
+});
+
+
+// Endpoint untuk mengambil semua event beserta nama event organizer
+
+// Endpoint untuk mengambil semua event beserta nama event organizer
+app.get('/events', async (_req: Request, res: Response) => {
+  try {
+    const data = await prisma.events.findMany({
+      include: {
+        users: {
+          select: { name: true }, // ambil nama user
+        },
+      },
+    });
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({
+      message: 'Error fetching events',
+      error: error.message,
+    });
+  }
 });
 
 app.use('/auth', authRoutes);
