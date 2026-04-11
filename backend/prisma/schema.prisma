@@ -19,24 +19,18 @@ model User {
   deletedAt    DateTime?
   referralCode String    @unique @db.VarChar(50)
   referredBy   String?
-  referredByUser User?   @relation("UserReferral", fields: [referredBy], references: [id])
-  referrals    User[]    @relation("UserReferral")
   events       events[]
   orders       orders[]
+  users        User?     @relation("usersTousers", fields: [referredBy], references: [id])
+  other_users  User[]    @relation("usersTousers")
   wallets      wallets?
 
+  @@index([referredBy])
   @@map("users")
 }
 
-model event_images {
-  id      String @id
-  eventId String
-  url     String
-  events  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
-}
-
 model events {
-  id               String         @id
+  id               String         @id @default(uuid())
   name             String         @unique @db.VarChar(255)
   price            Float
   totalSeats       Int
@@ -44,29 +38,35 @@ model events {
   eventOrganizerId String
   created_at       DateTime       @default(now())
   deleted_at       DateTime?
-  updated_at       DateTime
+  updated_at       DateTime       @updatedAt
   event_images     event_images[]
   users            User           @relation(fields: [eventOrganizerId], references: [id])
   orders           orders[]
+}
 
-  @@map("events")
+model event_images {
+  id      String @id @default(uuid())
+  eventId String
+  url     String
+  events  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model orders {
-  id          String      @id
+  id          String      @id  @default(uuid())
   customerId  String
   eventId     String
   quantity    Int
   totalAmount Float
   status      StatusOrder @default(PENDING)
   createdAt   DateTime    @default(now())
-  updatedAt   DateTime
+  updatedAt   DateTime    @updatedAt
+  paymentProof String?   @db.VarChar(500)
   users       User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  events      events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event       events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model wallets {
-  id      String @id
+  id      String @id @default(uuid())
   userId  String @unique
   balance Float
   users   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
