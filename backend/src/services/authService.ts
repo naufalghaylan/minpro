@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Prisma, RoleType } from '@prisma/client';
+import { CouponSource, Prisma, RoleType } from '@prisma/client';
 import voucherCodeGenerator from 'voucher-code-generator';
 import { AppError } from '../errors/app.error';
 import { prisma } from '../configs/prisma';
@@ -10,7 +10,17 @@ import type { LoginInput, RegisterInput } from '../validations/authValidation';
 const REFERRAL_CODE_LENGTH = 8;
 const REFERRAL_CODE_MAX_ATTEMPTS = 10;
 const REFERRAL_REWARD_POINTS = 10000;
+const REFERRAL_COUPON_DISCOUNT_PERCENT = 10;
+const REWARD_EXPIRATION_MONTHS = 3;
 const REFERRAL_CODE_CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const COUPON_CODE_LENGTH = 10;
+const COUPON_CODE_MAX_ATTEMPTS = 10;
+
+const getExpirationDateFromNow = (months: number) => {
+  const expirationDate = new Date();
+  expirationDate.setMonth(expirationDate.getMonth() + months);
+  return expirationDate;
+};
 
 const generateReferralCode = () => {
   return voucherCodeGenerator.generate({
@@ -34,6 +44,31 @@ const createUniqueReferralCode = async (tx: Prisma.TransactionClient) => {
   }
 
   throw new AppError(500, 'Failed to generate unique referral code');
+};
+
+const generateCouponCode = () => {
+  return voucherCodeGenerator.generate({
+    length: COUPON_CODE_LENGTH,
+    count: 1,
+    charset: REFERRAL_CODE_CHARSET,
+    prefix: 'REF',
+  })[0];
+};
+
+const createUniqueCouponCode = async (tx: Prisma.TransactionClient) => {
+  for (let attempt = 0; attempt < COUPON_CODE_MAX_ATTEMPTS; attempt += 1) {
+    const code = generateCouponCode();
+    const existingCoupon = await tx.coupons.findUnique({
+      where: { code },
+      select: { id: true },
+    });
+
+    if (!existingCoupon) {
+      return code;
+    }
+  }
+
+  throw new AppError(500, 'Failed to generate unique coupon code');
 };
 
 const sanitizeUser = (user: {
@@ -109,19 +144,44 @@ export const registerUser = async (input: RegisterInput) => {
     });
 
     if (referredBy) {
+      const rewardExpiresAt = getExpirationDateFromNow(REWARD_EXPIRATION_MONTHS);
+
       await tx.wallets.upsert({
-        where: { userId: referredBy },
+        where: { userId: createdUser.id },
         create: {
           id: randomUUID(),
-          userId: referredBy,
+          userId: createdUser.id,
           balance: REFERRAL_REWARD_POINTS,
+          expiresAt: rewardExpiresAt,
         },
         update: {
           balance: {
             increment: REFERRAL_REWARD_POINTS,
           },
+          expiresAt: rewardExpiresAt,
+          usedAt: null,
         },
       });
+
+      const existingCoupon = await tx.coupons.findFirst({
+        where: { userId: referredBy },
+        select: { id: true },
+      });
+
+      if (!existingCoupon) {
+        const couponCode = await createUniqueCouponCode(tx);
+
+        await tx.coupons.create({
+          data: {
+            id: randomUUID(),
+            userId: referredBy,
+            code: couponCode,
+            source: CouponSource.REFERRAL_SIGNUP,
+            amount: REFERRAL_COUPON_DISCOUNT_PERCENT,
+            expiresAt: rewardExpiresAt,
+          },
+        });
+      }
     }
 
     return createdUser;

@@ -1,16 +1,19 @@
-import { Link } from "react-router-dom";
+
+import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { useAuthStore } from '../store/auth';
 
-type Props = {
-  user?: {
-    name?: string;
-    email?: string;
-    role: "CUSTOMER" | "EVENT_ORGANIZER";
-  } | null;
-};
-
-export default function Header({ user }: Props) {
+export default function Header() {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  const handleLogout = () => {
+    logout();
+    setOpen(false);
+    navigate('/', { replace: true });
+  };
 
   return (
     <header className="w-full bg-white shadow-md px-6 py-4 flex justify-between items-center">
@@ -66,7 +69,6 @@ export default function Header({ user }: Props) {
 
             {open && (
               <div className="absolute right-0 mt-3 w-64 bg-white border rounded shadow-lg z-50">
-                
                 {/* PROFILE */}
                 <div className="p-4 border-b">
                   <p className="font-semibold">
@@ -76,8 +78,13 @@ export default function Header({ user }: Props) {
                     {user.email || "email@gmail.com"}
                   </p>
                 </div>
-
                 {/* MENU */}
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-500"
+                >
+                  Logout
+                </button>
                 <ul className="p-2">
                   <li className="p-2 hover:bg-gray-100 cursor-pointer">
                     <Link to="/profile">Profile</Link>
@@ -89,20 +96,6 @@ export default function Header({ user }: Props) {
                     </li>
                   )}
                 </ul>
-
-                {/* LOGOUT */}
-                <div className="border-t p-2">
-                  <button
-                    onClick={() => {
-                      localStorage.removeItem("token");
-                      window.location.reload();
-                    }}
-                    className="w-full text-left p-2 hover:bg-gray-100"
-                  >
-                    Log Out
-                  </button>
-                </div>
-
               </div>
             )}
           </div>

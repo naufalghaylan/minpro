@@ -9,6 +9,7 @@ import { prisma } from './src/configs/prisma';
 import { th } from 'zod/locales';
 
 
+import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -455,6 +456,8 @@ cron.schedule('*/5 * * * *', async () => {
 // AUTH ROUTES
 // ==================
 app.use('/auth', authRoutes);
+
+startRewardExpirationCron();
 
 // ==================
 // ERROR HANDLER
