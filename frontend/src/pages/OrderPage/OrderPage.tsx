@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
+import Header from "../../components/navbar";
 
 export default function OrderPage() {
   const { eventId } = useParams();
@@ -8,28 +9,30 @@ export default function OrderPage() {
   const [event, setEvent] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
 
-  useEffect(() => {
-    const fetchEvent = async () => {
+useEffect(() => {
+  const fetchEvent = async () => {
+    try {
       const res = await axios.get(`http://localhost:3000/events/${eventId}`);
       setEvent(res.data);
-    };
-    fetchEvent();
-  }, [eventId]);
+    } catch (error) {
+      console.error("ERROR FETCH EVENT:", error);
+    }
+  };
 
+  if (eventId) fetchEvent();
+}, [eventId]);
   const handleOrder = async () => {
-    // 🔥 VALIDASI WAJIB
     if (!quantity || quantity < 1) {
       alert("Minimal beli 1 ticket!");
       return;
     }
 
     try {
-      await axios.post("http://localhost:3000/orders", {
-        costumerId: "USER_ID_LOGIN",
-        eventId: eventId,
-        quantity: quantity,
-        status : "PENDING",
-      });
+     await axios.post(`http://localhost:3000/orders`, {
+  customerId: "customerId", 
+  eventId: eventId,
+  quantity: quantity,
+});
 
       alert("Order berhasil!");
     } catch (err) {
@@ -41,13 +44,15 @@ export default function OrderPage() {
   if (!event) return <p className="text-center mt-10">Loading...</p>;
 
   return (
+    <div>
+      <Header/>
     <div className="min-h-screen flex">
       
       {/* LEFT IMAGE */}
       <div className="w-1/2 hidden md:block">
         <img
           src={event.event_images?.[0]?.url}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-fill"
         />
       </div>
 
@@ -74,7 +79,6 @@ export default function OrderPage() {
               onChange={(e) => {
                 let val = Number(e.target.value);
 
-                // 🔥 FIX biar ga bisa 0 / minus / kosong
                 if (!val || val < 1) val = 1;
 
                 setQuantity(val);
@@ -106,6 +110,7 @@ export default function OrderPage() {
 
         </div>
       </div>
+    </div>
     </div>
   );
 }
