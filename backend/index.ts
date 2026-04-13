@@ -5,6 +5,7 @@ import cors from 'cors';
 import authRoutes from './src/routes/authRoutes';
 import { AppError } from './src/errors/app.error';
 import { prisma } from './src/configs/prisma';
+import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -222,6 +223,8 @@ app.get('/orders', async (_req: Request, res: Response) => {
 // AUTH ROUTES
 // ==================
 app.use('/auth', authRoutes);
+
+startRewardExpirationCron();
 
 // ==================
 // ERROR HANDLER
