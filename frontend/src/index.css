@@ -1,2 +1,29 @@
 @import "tailwindcss";
 /* stylelint-disable at-rule-no-unknown */
+/* 🔥 buat efek 3D */
+.perspective {
+  perspective: 800px;
+}
+
+/* 🔥 text 3D + animasi */
+.logo-3d {
+  display: inline-block;
+  transform-style: preserve-3d;
+  animation: rotate360 5s linear infinite;
+  
+  /* efek glow biar keren */
+  text-shadow: 
+    0 0 5px #00d9ff,
+    0 0 10px #00d9ff,
+    0 0 20px #00d9ff;
+}
+
+/* 🔥 animasi muter */
+@keyframes rotate360 {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}

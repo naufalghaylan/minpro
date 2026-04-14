@@ -1,28 +1,36 @@
-import { create } from 'zustand';
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
-export type UserRole = 'CUSTOMER' | 'EVENT_ORGANIZER';
-
-export interface AuthUser {
+type User = {
   id: string;
   name: string;
-  username: string;
   email: string;
-  role: UserRole;
-}
+  role: "CUSTOMER" | "EVENT_ORGANIZER";
+};
 
-interface AuthState {
-  user: AuthUser | null;
-  accessToken: string | null;
-  setUser: (user: AuthUser, token: string) => void;
+type AuthState = {
+  user: User | null;
+  token: string | null;
+  setAuth: (user: User, token: string) => void;
   logout: () => void;
-}
+};
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  accessToken: null,
-  setUser: (user, token) => set({ user, accessToken: token }),
-  logout: () => {
-    localStorage.removeItem('accessToken');
-    set({ user: null, accessToken: null });
-  },
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      token: null,
+
+      setAuth: (user, token) => {
+        set({ user, token });
+      },
+
+      logout: () => {
+        set({ user: null, token: null });
+      },
+    }),
+    {
+      name: "auth-storage", // 🔥 disimpan otomatis di localStorage
+    }
+  )
+);

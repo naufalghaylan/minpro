@@ -6,23 +6,22 @@ import cron from 'node-cron';
 import authRoutes from './src/routes/authRoutes';
 import { AppError } from './src/errors/app.error';
 import { prisma } from './src/configs/prisma';
-import { th } from 'zod/locales';
-
-
+import { authMiddleware } from './src/middlewares/authMiddleware';
 import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
+import { AuthRequest } from './src/types/auth';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + '-' + file.originalname);
-  },
-});
 
+// ==================
+// MULTER
+// ==================
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, 'uploads/'),
+  filename: (_req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+});
 const upload = multer({ storage });
+
 // ==================
 // MIDDLEWARE
 // ==================
@@ -30,24 +29,21 @@ app.use(
   cors({
     origin: 'http://localhost:5173',
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
-
 app.use(express.json());
 
 // ==================
 // ROOT
 // ==================
-app.get('/', (_req: Request, res: Response) => {
-  return res.send('API is running 🚀');
+app.get('/', (_req, res) => {
+  res.send('API is running 🚀');
 });
 
 // ==================
 // USERS
 // ==================
-app.get('/users', async (_req: Request, res: Response) => {
+app.get('/users', async (_req, res) => {
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -64,83 +60,62 @@ app.get('/users', async (_req: Request, res: Response) => {
     },
   });
 
-  return res.status(200).json(users);
+  res.json(users);
 });
 
 // ==================
 // EVENTS
 // ==================
-
-// 🔍 GET ALL EVENTS
-app.get('/events', async (req: Request, res: Response) => {
+app.get('/events', async (req, res) => {
   try {
     const search = req.query.search as string;
 
     const data = await prisma.events.findMany({
       where: search
         ? {
-            name: {
-              contains: search,
-              mode: 'insensitive',
-            },
+            name: { contains: search, mode: 'insensitive' },
           }
         : {},
       include: {
-        users: {
-          select: { name: true },
-        },
+        users: { select: { name: true } },
         event_images: true,
       },
     });
 
     res.json(data);
   } catch (error: any) {
-    res.status(500).json({
-      message: 'Error fetching events',
-      error: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 });
 
-app.get('/events/:id', async (req: Request, res: Response) => {
+app.get('/events/:id', async (req, res) => {
   try {
-const id = Array.isArray(req.params.id)
-  ? req.params.id[0]
-  : req.params.id;
+    const id = Array.isArray(req.params.id)
+      ? req.params.id[0]
+      : req.params.id;
 
     const event = await prisma.events.findUnique({
       where: { id },
       include: {
         event_images: true,
-        users: {
-          select: { name: true },
-        },
+        users: { select: { name: true } },
       },
     });
 
-    if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
-    }
+    if (!event) return res.status(404).json({ message: 'Event not found' });
 
     res.json(event);
   } catch (error: any) {
-    res.status(500).json({
-      message: 'Error fetching event detail',
-      error: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 });
 
-// ➕ CREATE EVENT
-app.post('/events', async (req: Request, res: Response) => {
+// ==================
+// CREATE EVENT
+// ==================
+app.post('/events', async (req, res) => {
   try {
     const { name, price, totalSeats, eventOrganizerId, images } = req.body;
-
-    if (!name || !price || !totalSeats || !eventOrganizerId) {
-      return res.status(400).json({
-        message: 'Semua field wajib diisi',
-      });
-    }
 
     const newEvent = await prisma.events.create({
       data: {
@@ -149,69 +124,66 @@ app.post('/events', async (req: Request, res: Response) => {
         totalSeats: Number(totalSeats),
         availableSeats: Number(totalSeats),
         eventOrganizerId,
-
         event_images: {
           create:
-            images?.map((url: string) => ({
-              url,
-            })) || [],
+            images?.map((url: string) => ({ url })) || [],
         },
       },
       include: {
         event_images: true,
-        users: {
-          select: { name: true },
-        },
+        users: { select: { name: true } },
       },
     });
 
-    res.status(201).json({
-      message: 'Event berhasil dibuat',
-      data: newEvent,
-    });
+    res.status(201).json(newEvent);
   } catch (error: any) {
-    console.error(error);
-
-    if (error.code === 'P2002') {
-      return res.status(400).json({
-        message: 'Nama event sudah digunakan',
-      });
-    }
-
-    res.status(500).json({
-      message: 'Error creating event',
-      error: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 });
 
 // ==================
 // ORDERS
 // ==================
-
-// ➕ CREATE ORDER:id
-app.post('/orders/:id', async (req: Request, res: Response) => {
+app.post('/orders/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { customerId, eventId, quantity } = req.body;
+    // 🔥 FIX PARAM ID (WAJIB)
+    const rawId = req.params.id;
+    const eventId = Array.isArray(rawId) ? rawId[0] : rawId;
+
+    if (!eventId) {
+      return res.status(400).json({ message: 'Event ID is required' });
+    }
+
+    // 🔥 FIX QUANTITY
+    const qty = Number(req.body.quantity);
+
+    if (!qty || qty < 1) {
+      return res.status(400).json({ message: 'Quantity tidak valid' });
+    }
+
+    // 🔥 CEK LOGIN
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const event = await tx.events.findUnique({
-        where: { id: eventId },
+        where: { id: eventId }, // ✅ sekarang aman
       });
 
       if (!event) throw new Error('Event not found');
 
-      if (event.availableSeats < quantity) {
+      if (event.availableSeats < qty) {
         throw new Error('Seat tidak cukup');
       }
 
-      const totalAmount = event.price * quantity;
+      const totalAmount = event.price * qty;
 
       const order = await tx.orders.create({
         data: {
-          customerId,
-          eventId,
-          quantity: Number(quantity),
+          customerId: req.user!.id,
+          eventId: eventId, // ✅ sudah pasti string
+          quantity: qty,
           totalAmount,
         },
       });
@@ -220,243 +192,167 @@ app.post('/orders/:id', async (req: Request, res: Response) => {
         where: { id: eventId },
         data: {
           availableSeats: {
-            decrement: Number(quantity),
+            decrement: qty,
           },
         },
       });
 
       return order;
-    }, {
-    timeout: 10000,
-  });
+    });
 
     res.status(201).json(result);
+
   } catch (error: any) {
     res.status(500).json({
-      message: error.message,
+      message: error.message || 'Internal Server Error',
     });
   }
 });
-// create order tanpa :id
-app.post('/orders', async (req: Request, res: Response) => {
-  try {
-    const { customerId, eventId, quantity } = req.body;
+//🔍 GET ORDERS 
+app.get('/orders', async (_req: Request, res: Response) => { const data = await prisma.orders.findMany({ include: { users: true, event: true, }, }); res.json(data); }); 
+//delete order 
+app.delete('/orders/:id', authMiddleware, async (req: AuthRequest, res: Response) => { try { const rawId = req.params.id; const orderId = Array.isArray(rawId) ? rawId[0] : rawId; if (!req.user?.id) { return res.status(401).json({ message: 'Unauthorized' }); } 
+// 🔥 cek order dulu (biar aman) 
+const order = await prisma.orders.findUnique({ where: { id: orderId }, }); if (!order) { return res.status(404).json({ message: 'Order tidak ditemukan' }); } 
+// 🔥 OPTIONAL (biar user ga bisa delete punya orang lain) 
+if (order.customerId !== req.user.id) { return res.status(403).json({ message: 'Forbidden' }); } 
+// 🔥 DELETE 
+await prisma.orders.delete({ where: { id: orderId }, }); res.json({ message: 'Order berhasil dihapus' }); } catch (error: any) { console.error(error); res.status(500).json({ message: error.message || 'Internal Server Error', }); } });
 
-    const result = await prisma.$transaction(async (tx) => {
-      const event = await tx.events.findUnique({
-        where: { id: eventId },
-      });
-
-      if (!event) throw new Error('Event not found');
-
-      if (event.availableSeats < quantity) {
-        throw new Error('Seat tidak cukup');
-      }
-
-      const totalAmount = event.price * quantity;
-
-      const order = await tx.orders.create({
-        data: {
-          customerId,
-          eventId,
-          quantity: Number(quantity),
-          totalAmount,
-        },
-      });
-
-      await tx.events.update({
-        where: { id: eventId },
-        data: {
-          availableSeats: {
-            decrement: Number(quantity),
-          },
-        },
-      });
-
-      return order;
-    }, {
-    timeout: 10000,
-  });
-
-    res.status(201).json(result);
-  } catch (error: any) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-});
-// 🔍 GET ORDERS
-app.get('/orders', async (_req: Request, res: Response) => {
-  const data = await prisma.orders.findMany({
-    include: {
-      users: true,
-      event: true,
-    },
-  });
-
-  res.json(data);
-});
 // ==================
-// TRANSACTIONS
+// TRANSACTION CREATE
 // ==================
-
-// ➕ CREATE TRANSACTION (AUTO PENDING)
-app.post('/transactions', async (req: Request, res: Response) => {
+app.post('/transactions', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { ordersId } = req.body;
+    const { orders, totalAmount } = req.body;
 
-    const order = await prisma.orders.findUnique({
-      where: { id: ordersId },
-    });
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
-    const transaction = await prisma.transaction.create({
-  data: {
-    userId: order.customerId,
-    ordersId: order.id,
-    totalAmount: order.totalAmount,
-    status: 'PENDING',
-  },
-});
+    const trx = await prisma.transaction.create({
+      data: {
+        userId: req.user.id,
+        totalAmount: Number(totalAmount),
 
-    res.status(201).json(transaction);
-  } catch (error: any) {
-    res.status(500).json({
-      message: 'Error creating transaction',
-      error: error.message,
-    });
-  }
-});
-
-
-// 📤 UPLOAD PAYMENT PROOF → PAID
-app.post(
-  '/transactions/:id/upload',
-  upload.single('paymentProof'),
-  async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      if (!id) {
-        throw new AppError(400, 'Transaction ID is required');
-      }
-
-      const trx = await prisma.transaction.findUnique({
-        where: { id  : id as string }
-        ,
-      });
-
-      if (!trx) {
-        return res.status(404).json({ message: 'Transaction not found' });
-      }
-
-      if (trx.status !== 'PENDING') {
-        return res.status(400).json({ message: 'Invalid status' });
-      }
-
-      const updated = await prisma.transaction.update({
-        where: { id : id as string },
-        data: {
-          paymentProof: req.file?.filename,
-          status: 'PAID',
+        orders: {
+          connect: orders.map((id: string) => ({ id })),
         },
-      });
 
-      res.json(updated);
-    } catch (error: any) {
-      res.status(500).json({
-        message: 'Upload failed',
-        error: error.message,
-      });
-    }
+        // kalau schema kamu ada field wajib lain, contoh:
+        // status: "PENDING",
+      },
+    });
+
+    res.json(trx);
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
   }
-);
+});
 
+// ==================
+// UPLOAD PAYMENT
+// ==================
+app.post('/transactions/:id/upload', upload.single('paymentProof'), async (req: Request, res: Response) => {
+  try {
+const rawId = req.params.id;
+const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
-// ❌ CANCEL TRANSACTION → BALIKIN SEAT
-app.post('/transactions/:id/cancel', async (req: Request, res: Response) => {
+if (!id) {
+  return res.status(400).json({ message: 'ID is required' });
+}
+    const trx = await prisma.transaction.findUnique({ where: { id } });
+    if (!trx) return res.status(404).json({ message: 'Not found' });
+
+    const updated = await prisma.transaction.update({
+      where: { id },
+      data: {
+        paymentProof: req.file?.filename,
+        status: 'PAID',
+      },
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ==================
+// CANCEL TRANSACTION (FIX)
+// ==================
+app.post('/transactions/:id/cancel', async (req, res) => {
   try {
     const { id } = req.params;
 
     const trx = await prisma.transaction.findUnique({
-      where: { id : id as string },
-      include: { order: true },
+      where: { id },
+      include: { orders: true },
     });
 
-    if (!trx) {
-      return res.status(404).json({ message: 'Transaction not found' });
-    }
+    if (!trx) return res.status(404).json({ message: 'Not found' });
 
-    if (trx.status !== 'PENDING') {
-      return res.status(400).json({ message: 'Cannot cancel' });
+    // 🔥 BALIKIN SEAT SEMUA ORDER
+    for (const order of trx.orders) {
+      await prisma.events.update({
+        where: { id: order.eventId },
+        data: {
+          availableSeats: {
+            increment: order.quantity,
+          },
+        },
+      });
     }
 
     await prisma.transaction.update({
-      where: { id : id as string },
+      where: { id },
       data: { status: 'CANCELLED' },
     });
 
-    // 🔥 BALIKIN SEAT
-    await prisma.events.update({
-      where: { id: trx.order.eventId },
-      data: {
-        availableSeats: {
-          increment: trx.order.quantity,
-        },
-      },
-    });
-
-    res.json({ message: 'Transaction cancelled & seat returned' });
+    res.json({ message: 'Cancelled' });
   } catch (error: any) {
-    res.status(500).json({
-      message: 'Cancel failed',
-      error: error.message,
-    });
+    res.status(500).json({ message: error.message });
   }
 });
 
-
-// ⏰ AUTO EXPIRED (3 JAM)
+// ==================
+// AUTO EXPIRED (2 JAM FIX)
+// ==================
 cron.schedule('*/5 * * * *', async () => {
-  console.log('Checking expired transactions...');
-
-  const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
 
   const expired = await prisma.transaction.findMany({
     where: {
       status: 'PENDING',
-      createdAt: { lt: threeHoursAgo },
+      createdAt: { lt: twoHoursAgo },
     },
-    include: {
-      order: true,
-    },
+    include: { orders: true },
   });
 
   for (const trx of expired) {
+    for (const order of trx.orders) {
+      await prisma.events.update({
+        where: { id: order.eventId },
+        data: {
+          availableSeats: {
+            increment: order.quantity,
+          },
+        },
+      });
+    }
+
     await prisma.transaction.update({
       where: { id: trx.id },
       data: { status: 'EXPIRED' },
-    });
-
-    // 🔥 BALIKIN SEAT
-    await prisma.events.update({
-      where: { id: trx.order.eventId },
-      data: {
-        availableSeats: {
-          increment: trx.order.quantity,
-        },
-      },
     });
   }
 });
 
 // ==================
-// AUTH ROUTES
+// AUTH
 // ==================
 app.use('/auth', authRoutes);
-
 startRewardExpirationCron();
 
 // ==================
@@ -466,8 +362,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({ message: err.message });
   }
-
-  return res.status(500).json({ message: 'Internal server error' });
+  res.status(500).json({ message: 'Internal server error' });
 });
 
 // ==================
