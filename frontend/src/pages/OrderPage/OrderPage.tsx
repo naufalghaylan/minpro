@@ -1,43 +1,58 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import axios from "axios";
+import { useParams, useNavigate } from "react-router-dom";
 import Header from "../../components/navbar";
+import api from "../../api"; // 🔥 pakai api instance
+import { useAuthStore } from "../../store/auth";
 
 export default function OrderPage() {
   const { eventId } = useParams();
+  const navigate = useNavigate();
+
+  // 🔥 ambil dari zustand
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
 
   const [event, setEvent] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
 
-useEffect(() => {
-  const fetchEvent = async () => {
-    try {
-      const res = await axios.get(`http://localhost:3000/events/${eventId}`);
-      setEvent(res.data);
-    } catch (error) {
-      console.error("ERROR FETCH EVENT:", error);
-    }
-  };
+  useEffect(() => {
+    const fetchEvent = async () => {
+      try {
+        const res = await api.get(`/events/${eventId}`);
+        setEvent(res.data);
+      } catch (error) {
+        console.error("ERROR FETCH EVENT:", error);
+      }
+    };
 
-  if (eventId) fetchEvent();
-}, [eventId]);
+    if (eventId) fetchEvent();
+  }, [eventId]);
+
   const handleOrder = async () => {
+
+    if (!token) {
+      alert("HARAP LOGIN TERLEBIH DAHULU");
+      navigate("/login");
+      return;
+    }
+
     if (!quantity || quantity < 1) {
       alert("Minimal beli 1 ticket!");
       return;
     }
 
     try {
-     await axios.post(`http://localhost:3000/orders`, {
-  customerId: "customerId", 
-  eventId: eventId,
-  quantity: quantity,
+      await api.post(`/orders/${eventId}`, { quantity }, {
+  headers: {
+    Authorization: `Bearer ${token}`
+  }
 });
 
-      alert("Order berhasil!");
-    } catch (err) {
-      console.error(err);
-      alert("Gagal order");
+      alert("Order berhasil! silahkan cek halaman transaksi.");
+      navigate("/"); // opsional redirect
+    } catch (err: any) {
+      console.error("ORDER ERROR:", err.response?.data || err.message);
+      alert(err.response?.data?.message || "Gagal order");
     }
   };
 
@@ -45,72 +60,68 @@ useEffect(() => {
 
   return (
     <div>
-      <Header/>
-    <div className="min-h-screen flex">
-      
-      {/* LEFT IMAGE */}
-      <div className="w-1/2 hidden md:block">
-        <img
-          src={event.event_images?.[0]?.url}
-          className="w-full h-full object-fill"
-        />
-      </div>
+      <Header />
+      <div className="min-h-screen flex">
+        
+        {/* LEFT IMAGE */}
+        <div className="w-1/2 hidden md:block">
+          <img
+            src={event.event_images?.[0]?.url}
+            className="w-full h-full object-fill"
+          />
+        </div>
 
-      {/* RIGHT FORM */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-10">
-        <div className="w-full max-w-md">
+        {/* RIGHT */}
+        <div className="w-full md:w-1/2 flex items-center justify-center p-10">
+          <div className="w-full max-w-md">
 
-          <h1 className="text-2xl font-bold mb-2">{event.name}</h1>
-          <p className="text-gray-500 mb-6">Checkout Ticket</p>
+            <h1 className="text-2xl font-bold mb-2">{event.name}</h1>
+            <p className="text-gray-500 mb-6">Checkout Ticket</p>
 
-          {/* PRICE */}
-          <div className="mb-4">
-            <p className="text-sm text-gray-500">Harga</p>
-            <p className="text-lg font-semibold">Rp {event.price}</p>
+            {/* 🔥 tampilkan user */}
+            {user && (
+              <p className="text-sm mb-4">
+                Login sebagai: <b>{user.name}</b>
+              </p>
+            )}
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-500">Harga</p>
+              <p className="text-lg font-semibold">Rp {event.price}</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-sm">Jumlah Ticket</label>
+              <input
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(e) => {
+                  let val = Number(e.target.value);
+                  if (!val || val < 1) val = 1;
+                  setQuantity(val);
+                }}
+                className="w-full border p-2 rounded mt-1"
+              />
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">Total</p>
+              <p className="text-xl font-bold">
+                Rp {event.price * quantity}
+              </p>
+            </div>
+
+            <button
+              onClick={handleOrder}
+              className="w-full py-2 rounded text-white bg-blue-600 hover:bg-blue-700"
+            >
+              Checkout
+            </button>
+
           </div>
-
-          {/* QUANTITY */}
-          <div className="mb-4">
-            <label className="text-sm">Jumlah Ticket</label>
-            <input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => {
-                let val = Number(e.target.value);
-
-                if (!val || val < 1) val = 1;
-
-                setQuantity(val);
-              }}
-              className="w-full border p-2 rounded mt-1"
-            />
-          </div>
-
-          {/* TOTAL */}
-          <div className="mb-6">
-            <p className="text-sm text-gray-500">Total</p>
-            <p className="text-xl font-bold">
-              Rp {event.price * quantity}
-            </p>
-          </div>
-
-          {/* BUTTON */}
-          <button
-            onClick={handleOrder}
-            disabled={quantity < 1}
-            className={`w-full py-2 rounded text-white ${
-              quantity >= 1
-                ? "bg-blue-600 hover:bg-blue-700"
-                : "bg-gray-400 cursor-not-allowed"
-            }`}
-          >
-            Checkout
-          </button>
-
         </div>
       </div>
-    </div>
     </div>
   );
 }
