@@ -39,7 +39,7 @@ export default function Header() {
         {/* 🔥 KHUSUS EVENT ORGANIZER */}
         {user?.role === "EVENT_ORGANIZER" && (
           <>
-            <Link to="/create-event" className="hover:text-blue-600">
+            <Link to="/createevent" className="hover:text-blue-600">
               BUAT EVENT
             </Link>
 

@@ -113,9 +113,17 @@ app.get('/events/:id', async (req, res) => {
 // ==================
 // CREATE EVENT
 // ==================
-app.post('/events', async (req, res) => {
+app.post('/events', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { name, price, totalSeats, eventOrganizerId, images } = req.body;
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (req.user.role !== "EVENT_ORGANIZER") {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const { name, price, totalSeats, images } = req.body;
 
     const newEvent = await prisma.events.create({
       data: {
@@ -123,10 +131,11 @@ app.post('/events', async (req, res) => {
         price: Number(price),
         totalSeats: Number(totalSeats),
         availableSeats: Number(totalSeats),
-        eventOrganizerId,
+
+        eventOrganizerId: req.user.id, // ✅ aman
+
         event_images: {
-          create:
-            images?.map((url: string) => ({ url })) || [],
+          create: images?.map((url: string) => ({ url })) || [],
         },
       },
       include: {
