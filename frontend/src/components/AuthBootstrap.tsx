@@ -11,19 +11,28 @@ import { useAuthStore } from '../store/auth';
 import api from '../api';
 
 export default function AuthBootstrap() {
-  const setUser = useAuthStore((s) => s.setUser);
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const setHydrated = useAuthStore((s) => s.setHydrated);
+
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    if (!token) return;
+    if (!token) {
+      setHydrated(true);
+      return;
+    }
+
     api.get('/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
-        setUser(res.data.user, token);
+        setAuth(res.data.user, token);
       })
       .catch(() => {
         localStorage.removeItem('accessToken');
+      })
+      .finally(() => {
+        setHydrated(true);
       });
-  }, [setUser]);
+  }, [setAuth, setHydrated]);
   return null;
 }

@@ -1,6 +1,15 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../errors/app.error';
-import { getCurrentUserById, loginUser, registerUser } from '../services/authService';
+import {
+  changeUserPassword,
+  getCurrentUserById,
+  getUserWalletAndCoupons,
+  loginUser,
+  registerUser,
+  requestPasswordReset,
+  resetUserPassword,
+  updateUserProfile,
+} from '../services/authService';
 import type { AuthRequest } from '../types/auth';
 
 const handleError = (res: Response, error: unknown) => {
@@ -41,6 +50,63 @@ export const getMe = async (req: AuthRequest, res: Response) => {
 
     const user = await getCurrentUserById(req.user.id);
     return res.status(200).json({ user });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const updateProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await updateUserProfile(req.user.id, req.body);
+    return res.status(200).json({ message: 'Profile updated successfully', user });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const changePassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const result = await changeUserPassword(req.user.id, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+  try {
+    const result = await requestPasswordReset(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const result = await resetUserPassword(req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const getWalletAndCoupons = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const result = await getUserWalletAndCoupons(req.user.id);
+    return res.status(200).json(result);
   } catch (error) {
     return handleError(res, error);
   }

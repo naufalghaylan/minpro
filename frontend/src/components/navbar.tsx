@@ -90,8 +90,14 @@ export default function Header() {
 
                   {/* MENU */}
                   <ul className="p-2">
-                    <li className="p-2 hover:bg-gray-100 cursor-pointer">
-                      <Link to="/profile">Profile</Link>
+                    <li
+                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                      onClick={() => {
+                        setOpen(false);
+                        navigate("/profile");
+                      }}
+                    >
+                      Profile
                     </li>
 
                     {user.role === "EVENT_ORGANIZER" && (
