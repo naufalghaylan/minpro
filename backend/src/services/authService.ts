@@ -1,11 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID, randomBytes } from 'node:crypto';
 import { CouponSource, Prisma, RoleType } from '@prisma/client';
 import voucherCodeGenerator from 'voucher-code-generator';
 import { AppError } from '../errors/app.error';
 import { prisma } from '../configs/prisma';
 import { comparePassword, hashPassword } from './passwordService';
 import { generateAccessToken } from './jwtService';
-import type { LoginInput, RegisterInput } from '../validations/authValidation';
+import { sendResetPasswordEmail } from './emailService';
+import type { ChangePasswordInput, ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, UpdateProfileInput } from '../validations/authValidation';
 
 const REFERRAL_CODE_LENGTH = 8;
 const REFERRAL_CODE_MAX_ATTEMPTS = 10;
@@ -15,11 +16,25 @@ const REWARD_EXPIRATION_MONTHS = 3;
 const REFERRAL_CODE_CHARSET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const COUPON_CODE_LENGTH = 10;
 const COUPON_CODE_MAX_ATTEMPTS = 10;
+const RESET_TOKEN_BYTES = 32;
+const RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES = 15;
 
 const getExpirationDateFromNow = (months: number) => {
   const expirationDate = new Date();
   expirationDate.setMonth(expirationDate.getMonth() + months);
   return expirationDate;
+};
+
+const getResetTokenExpirationDate = () => {
+  return new Date(Date.now() + RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES * 60 * 1000);
+};
+
+const hashToken = (token: string) => {
+  return createHash('sha256').update(token).digest('hex');
+};
+
+const createResetToken = () => {
+  return randomBytes(RESET_TOKEN_BYTES).toString('hex');
 };
 
 const generateReferralCode = () => {
@@ -76,19 +91,21 @@ const sanitizeUser = (user: {
   name: string;
   username: string;
   email: string;
+  bio: string | null;
   role: RoleType;
   referralCode: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
 }) => {
-  const { id, name, username, email, role, referralCode, createdAt, updatedAt, deletedAt } = user;
+  const { id, name, username, email, bio, role, referralCode, createdAt, updatedAt, deletedAt } = user;
 
   return {
     id,
     name,
     username,
     email,
+    bio,
     role,
     referralCode,
     createdAt,
@@ -233,4 +250,170 @@ export const getCurrentUserById = async (userId: string) => {
   }
 
   return sanitizeUser(user);
+};
+
+export const updateUserProfile = async (userId: string, input: UpdateProfileInput) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+
+  if (input.username && input.username !== user.username) {
+    const existingUsername = await prisma.user.findUnique({
+      where: { username: input.username },
+      select: { id: true },
+    });
+
+    if (existingUsername) {
+      throw new AppError(409, 'Username already registered');
+    }
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: input.name ?? undefined,
+      username: input.username ?? undefined,
+      bio: input.bio === undefined ? undefined : input.bio,
+    },
+  });
+
+  return sanitizeUser(updatedUser);
+};
+
+export const changeUserPassword = async (userId: string, input: ChangePasswordInput) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, password: true },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+
+  const isCurrentPasswordValid = await comparePassword(input.currentPassword, user.password);
+
+  if (!isCurrentPasswordValid) {
+    throw new AppError(400, 'Current password is incorrect');
+  }
+
+  const isSamePassword = await comparePassword(input.newPassword, user.password);
+
+  if (isSamePassword) {
+    throw new AppError(400, 'New password must be different from current password');
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      password: await hashPassword(input.newPassword),
+    },
+  });
+
+  return { message: 'Password updated successfully' };
+};
+
+export const requestPasswordReset = async (input: ForgotPasswordInput) => {
+  const user = await prisma.user.findUnique({
+    where: { email: input.email },
+    select: { id: true, name: true, email: true },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'Email is not registered');
+  }
+
+  const resetToken = createResetToken();
+  const resetTokenHash = hashToken(resetToken);
+  const resetTokenExpiresAt = getResetTokenExpirationDate();
+  const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:5173';
+  const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.$executeRaw`
+      DELETE FROM "password_reset_tokens"
+      WHERE "user_id" = ${user.id}
+    `;
+
+    await tx.$executeRaw`
+      INSERT INTO "password_reset_tokens" ("id", "user_id", "token_hash", "expires_at")
+      VALUES (${randomUUID()}, ${user.id}, ${resetTokenHash}, ${resetTokenExpiresAt})
+    `;
+  });
+
+  await sendResetPasswordEmail({
+    emailTo: user.email,
+    name: user.name,
+    resetLink,
+  });
+
+  return { message: 'Reset link sent successfully' };
+};
+
+export const resetUserPassword = async (input: ResetPasswordInput) => {
+  const tokenHash = hashToken(input.token);
+  const result = await prisma.$transaction(async (tx: any) => {
+    const tokenRows = await tx.$queryRaw<Array<{ id: string; userId: string; password: string }>>`
+      SELECT prt."id", prt."user_id" AS "userId", u."password"
+      FROM "password_reset_tokens" prt
+      INNER JOIN "users" u ON u."id" = prt."user_id"
+      WHERE prt."token_hash" = ${tokenHash}
+        AND prt."expires_at" > ${new Date()}
+        AND prt."used_at" IS NULL
+      LIMIT 1
+    `;
+
+    const tokenRecord = tokenRows[0];
+
+    if (!tokenRecord) {
+      throw new AppError(400, 'Reset token is invalid or expired');
+    }
+
+    const isSamePassword = await comparePassword(input.newPassword, tokenRecord.password);
+
+    if (isSamePassword) {
+      throw new AppError(400, 'New password must be different from current password');
+    }
+
+    const consumedRows = await tx.$executeRaw`
+      UPDATE "password_reset_tokens"
+      SET "used_at" = ${new Date()}
+      WHERE "id" = ${tokenRecord.id}
+        AND "used_at" IS NULL
+    `;
+
+    if (consumedRows === 0) {
+      throw new AppError(400, 'Reset token is invalid or expired');
+    }
+
+    await tx.user.update({
+      where: { id: tokenRecord.userId },
+      data: {
+        password: await hashPassword(input.newPassword),
+      },
+    });
+
+    return { message: 'Password reset successfully' };
+  });
+
+  return result;
+};
+
+export const getUserWalletAndCoupons = async (userId: string) => {
+  const wallet = await prisma.wallets.findUnique({
+    where: { userId },
+  });
+
+  const coupons = await prisma.coupons.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return {
+    wallet: wallet ?? null,
+    coupons,
+  };
 };
