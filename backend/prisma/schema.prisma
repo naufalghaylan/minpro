@@ -69,29 +69,30 @@ model event_images {
 }
 
 model orders {
-  id          String      @id  @default(uuid())
-  customerId  String
-  eventId     String
-  quantity    Int
-  totalAmount Float
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  users       User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  event       events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  transaction transaction[]
+  id            String   @id @default(uuid())
+  customerId    String
+  eventId       String
+  quantity      Int
+  totalAmount   Float
+  transactionId String   @unique  // 🔥 penting: 1 order = 1 transaction
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  event         events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  transaction   transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 }
 model transaction {
-  id          String   @id @default(uuid())
-  userId      String
-  totalAmount Float
+  id           String   @id @default(uuid())
+  userId       String
+  totalAmount  Float
   paymentProof String?
-  status      StatusOrder @default(PENDING)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user        User     @relation(fields: [userId], references: [id])
-
-  orders      orders[]  // 🔥 INI KUNCINYA
+  status       StatusOrder @default(PENDING)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  expiredAt    DateTime?
+  user         User   @relation(fields: [userId], references: [id])
+  order        orders? 
 }
 model wallets {
   id        String   @id @default(uuid())

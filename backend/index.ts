@@ -32,7 +32,7 @@ app.use(
   })
 );
 app.use(express.json());
-
+app.use("/uploads", express.static("uploads"));
 // ==================
 // ROOT
 // ==================
@@ -41,45 +41,129 @@ app.get('/', (_req, res) => {
 });
 
 // ==================
-// USERS
-// ==================
-app.get('/users', async (_req, res) => {
-  const users = await prisma.user.findMany({
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      email: true,
-      bio: true,
-      role: true,
-      createdAt: true,
-      updatedAt: true,
-      deletedAt: true,
-      referralCode: true,
-      referredBy: true,
-    },
-  });
-
-  res.json(users);
-});
-
-// ==================
 // EVENTS
 // ==================
 app.get('/events', async (req, res) => {
-  try {
-    const search = req.query.search as string;
+  const search = req.query.search as string;
 
-    const data = await prisma.events.findMany({
-      where: search
-        ? {
-            name: { contains: search, mode: 'insensitive' },
-          }
-        : {},
+  const data = await prisma.events.findMany({
+    where: search
+      ? { name: { contains: search, mode: 'insensitive' } }
+      : {},
+    include: {
+      users: { select: { name: true } },
+      event_images: true,
+    },
+  });
+
+  res.json(data);
+});
+app.get("/events/:id", async (req, res) => {
+  console.log("PARAM ID:", req.params.id);
+
+  const event = await prisma.events.findUnique({
+    where: { id: req.params.id },
+  });
+
+  console.log("EVENT:", event);
+
+  if (!event) {
+    return res.status(404).json({ message: "Event not found" });
+  }
+
+  res.json(event);
+});
+// ==================
+// CREATE EVENT
+// ==================
+app.post(
+  "/events",
+  authMiddleware,
+  upload.array("images"), // 🔥 MULTIPLE FILE
+  async (req: AuthRequest, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      if (req.user.role !== "EVENT_ORGANIZER") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const { name, price, totalSeats } = req.body;
+
+      const files = req.files as Express.Multer.File[];
+
+      const newEvent = await prisma.events.create({
+        data: {
+          name,
+          price: Number(price),
+          totalSeats: Number(totalSeats),
+          availableSeats: Number(totalSeats),
+          eventOrganizerId: req.user.id,
+
+          event_images: {
+            create: files.map((file) => ({
+              url: file.filename, // 🔥 simpan filename
+            })),
+          },
+        },
+        include: {
+          event_images: true,
+        },
+      });
+
+      res.status(201).json(newEvent);
+
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+app.get('/transactions/:id', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+const rawId = req.params.id;
+    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+
+    const trx = await prisma.transaction.findUnique({
+      where: { id },
       include: {
-        users: { select: { name: true } },
-        event_images: true,
+        order: {
+          include: {
+            event: true,
+          },
+        },
       },
+    });
+
+    if (!trx) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    res.json(trx);
+
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ==================
+// 🔥 CHECKOUT
+// ==================
+app.get("/transactions", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.id;
+
+    const data = await prisma.transaction.findMany({
+      where: { userId },
+      include: {
+        order: {
+          include: {
+            event: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
     });
 
     res.json(data);
@@ -87,113 +171,187 @@ app.get('/events', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+// ==================
+// 🔥 VERIFICATION LIST (EO ONLY)
+// ==================
+app.get(
+  "/admin/transactions",
+  authMiddleware,
+  async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role !== "EVENT_ORGANIZER") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
 
-app.get('/events/:id', async (req, res) => {
-  try {
-    const id = Array.isArray(req.params.id)
-      ? req.params.id[0]
-      : req.params.id;
+      const data = await prisma.transaction.findMany({
+        where: {
+          status: "PAID", // 🔥 hanya yang sudah upload bukti
+        },
+        include: {
+          order: {
+            include: {
+              event: true,
+            },
+          },
+          user: {
+            select: { name: true, email: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
 
-    const event = await prisma.events.findUnique({
-      where: { id },
-      include: {
-        event_images: true,
-        users: { select: { name: true } },
-      },
-    });
-
-    if (!event) return res.status(404).json({ message: 'Event not found' });
-
-    res.json(event);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+      res.json(data);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
   }
-});
+);
+app.post(
+  "/admin/transactions/:id/approve",
+  authMiddleware,
+  async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role !== "EVENT_ORGANIZER") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
 
-// ==================
-// CREATE EVENT
-// ==================
-app.post('/events', authMiddleware, async (req: AuthRequest, res) => {
+      const id = Array.isArray(req.params.id)
+        ? req.params.id[0]
+        : req.params.id;
+
+      const trx = await prisma.transaction.findUnique({
+        where: { id },
+      });
+
+      if (!trx) {
+        return res.status(404).json({ message: "Not found" });
+      }
+
+      if (trx.status !== "PAID") {
+        return res.status(400).json({
+          message: "Transaksi belum dibayar",
+        });
+      }
+
+      const updated = await prisma.transaction.update({
+        where: { id },
+        data: { status: "DONE" },
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+app.post(
+  "/admin/transactions/:id/reject",
+  authMiddleware,
+  async (req: AuthRequest, res) => {
+    try {
+      if (req.user?.role !== "EVENT_ORGANIZER") {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const id = Array.isArray(req.params.id)
+        ? req.params.id[0]
+        : req.params.id;
+
+      const trx = await prisma.transaction.findUnique({
+        where: { id },
+        include: { order: true }, // 🔥 WAJIB
+      });
+
+      if (!trx) {
+        return res.status(404).json({ message: "Not found" });
+      }
+
+      if (trx.status !== "PAID") {
+        return res.status(400).json({
+          message: "Transaksi belum dibayar",
+        });
+      }
+
+      // 🔥 BALIKIN SEAT
+      if (trx.order) {
+        await prisma.events.update({
+          where: { id: trx.order.eventId },
+          data: {
+            availableSeats: {
+              increment: trx.order.quantity,
+            },
+          },
+        });
+      }
+
+      const updated = await prisma.transaction.update({
+        where: { id },
+        data: { status: "REJECTED" },
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+);
+app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    if (!req.user) {
+    const userId = req.user?.id;
+    const { eventId, quantity } = req.body;
+
+    if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (req.user.role !== "EVENT_ORGANIZER") {
-      return res.status(403).json({ message: "Forbidden" });
+    const qty = Number(quantity);
+    if (!qty || qty < 1) {
+      return res.status(400).json({ message: "Quantity tidak valid" });
     }
 
-    const { name, price, totalSeats, images } = req.body;
-
-    const newEvent = await prisma.events.create({
-      data: {
-        name,
-        price: Number(price),
-        totalSeats: Number(totalSeats),
-        availableSeats: Number(totalSeats),
-
-        eventOrganizerId: req.user.id, // ✅ aman
-
-        event_images: {
-          create: images?.map((url: string) => ({ url })) || [],
-        },
-      },
-      include: {
-        event_images: true,
-        users: { select: { name: true } },
+    // ❌ anti double transaksi
+    const existing = await prisma.transaction.findFirst({
+      where: {
+        userId,
+        status: "PENDING",
       },
     });
 
-    res.status(201).json(newEvent);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ==================
-// ORDERS
-// ==================
-app.post('/orders/:id', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    // 🔥 FIX PARAM ID (WAJIB)
-    const rawId = req.params.id;
-    const eventId = Array.isArray(rawId) ? rawId[0] : rawId;
-
-    if (!eventId) {
-      return res.status(400).json({ message: 'Event ID is required' });
-    }
-
-    // 🔥 FIX QUANTITY
-    const qty = Number(req.body.quantity);
-
-    if (!qty || qty < 1) {
-      return res.status(400).json({ message: 'Quantity tidak valid' });
-    }
-
-    // 🔥 CEK LOGIN
-    if (!req.user?.id) {
-      return res.status(401).json({ message: 'Unauthorized' });
+    if (existing) {
+      return res.status(400).json({
+        message: "Selesaikan pembayaran sebelumnya dulu",
+      });
     }
 
     const result = await prisma.$transaction(async (tx) => {
+
       const event = await tx.events.findUnique({
-        where: { id: eventId }, // ✅ sekarang aman
+        where: { id: eventId },
       });
 
-      if (!event) throw new Error('Event not found');
-
-      if (event.availableSeats < qty) {
-        throw new Error('Seat tidak cukup');
-      }
+      if (!event) throw new Error("Event tidak ditemukan");
+      if (event.availableSeats < qty) throw new Error("Seat tidak cukup");
 
       const totalAmount = event.price * qty;
 
-      const order = await tx.orders.create({
+      const expiredAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+      const trx = await tx.transaction.create({
         data: {
-          customerId: req.user!.id,
-          eventId: eventId, // ✅ sudah pasti string
+          userId,
+          totalAmount,
+          status: "PENDING",
+          expiredAt,
+        },
+      });
+
+      await tx.orders.create({
+        data: {
+          customerId: userId,
+          eventId,
           quantity: qty,
           totalAmount,
+          transactionId: trx.id,
         },
       });
 
@@ -206,90 +364,88 @@ app.post('/orders/:id', authMiddleware, async (req: AuthRequest, res) => {
         },
       });
 
-      return order;
+      return trx;
     });
 
-    res.status(201).json(result);
-
-  } catch (error: any) {
-    res.status(500).json({
-      message: error.message || 'Internal Server Error',
-    });
-  }
-});
-//🔍 GET ORDERS 
-app.get('/orders', async (_req: Request, res: Response) => { const data = await prisma.orders.findMany({ include: { users: true, event: true, }, }); res.json(data); }); 
-//delete order 
-app.delete('/orders/:id', authMiddleware, async (req: AuthRequest, res: Response) => { try { const rawId = req.params.id; const orderId = Array.isArray(rawId) ? rawId[0] : rawId; if (!req.user?.id) { return res.status(401).json({ message: 'Unauthorized' }); } 
-// 🔥 cek order dulu (biar aman) 
-const order = await prisma.orders.findUnique({ where: { id: orderId }, }); if (!order) { return res.status(404).json({ message: 'Order tidak ditemukan' }); } 
-// 🔥 OPTIONAL (biar user ga bisa delete punya orang lain) 
-if (order.customerId !== req.user.id) { return res.status(403).json({ message: 'Forbidden' }); } 
-// 🔥 DELETE 
-await prisma.orders.delete({ where: { id: orderId }, }); res.json({ message: 'Order berhasil dihapus' }); } catch (error: any) { console.error(error); res.status(500).json({ message: error.message || 'Internal Server Error', }); } });
-
-// ==================
-// TRANSACTION CREATE
-// ==================
-app.post('/transactions', authMiddleware, async (req: AuthRequest, res) => {
-  try {
-    const { orders, totalAmount } = req.body;
-
-    if (!req.user?.id) {
-      return res.status(401).json({ message: "User not authenticated" });
-    }
-
-    const trx = await prisma.transaction.create({
-      data: {
-        userId: req.user.id,
-        totalAmount: Number(totalAmount),
-
-        orders: {
-          connect: orders.map((id: string) => ({ id })),
-        },
-
-        // kalau schema kamu ada field wajib lain, contoh:
-        // status: "PENDING",
-      },
+    res.status(201).json({
+      message: "Checkout berhasil",
+      transactionId: result.id,
     });
 
-    res.json(trx);
   } catch (error: any) {
     console.error(error);
-    res.status(500).json({ message: error.message });
+    res.status(400).json({ message: error.message });
   }
 });
 
 // ==================
-// UPLOAD PAYMENT
+// 💳 UPLOAD PAYMENT
 // ==================
-app.post('/transactions/:id/upload', upload.single('paymentProof'), async (req: Request, res: Response) => {
-  try {
-const rawId = req.params.id;
-const id = Array.isArray(rawId) ? rawId[0] : rawId;
+app.post(
+  "/transactions/:id/upload",
+  authMiddleware,
+  upload.single("paymentProof"),
+  async (req: AuthRequest, res) => {
+    try {
+      const rawId = req.params.id;
+      const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
-if (!id) {
-  return res.status(400).json({ message: 'ID is required' });
-}
-    const trx = await prisma.transaction.findUnique({ where: { id } });
-    if (!trx) return res.status(404).json({ message: 'Not found' });
+      console.log("FILE:", req.file);
 
-    const updated = await prisma.transaction.update({
-      where: { id },
-      data: {
-        paymentProof: req.file?.filename,
-        status: 'PAID',
-      },
-    });
+      if (!req.file) {
+        return res.status(400).json({
+          message: "File tidak ditemukan",
+        });
+      }
 
-    res.json(updated);
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+      const trx = await prisma.transaction.findUnique({
+        where: { id },
+      });
+
+      if (!trx) {
+        return res.status(404).json({
+          message: "Transaksi tidak ditemukan",
+        });
+      }
+
+      // 🔥 CEK STATUS
+      if (trx.status !== "PENDING") {
+        return res.status(400).json({
+          message: "Transaksi sudah tidak valid",
+        });
+      }
+
+      // 🔥 CEK EXPIRED (INI YANG PENTING BANGET)
+      if (trx.expiredAt && new Date() > trx.expiredAt) {
+        return res.status(400).json({
+          message: "Transaksi sudah expired",
+        });
+      }
+
+      // 🔥 UPDATE AMAN
+      const updated = await prisma.transaction.update({
+        where: { id },
+        data: {
+          paymentProof: req.file.filename,
+          status: "PAID",
+        },
+      });
+
+      return res.json({
+        message: "Upload berhasil",
+        data: updated,
+      });
+
+    } catch (err: any) {
+      console.error("UPLOAD ERROR DETAIL:", err);
+      return res.status(500).json({
+        message: err.message || "Internal Server Error",
+      });
+    }
   }
-});
-
+);
 // ==================
-// CANCEL TRANSACTION (FIX)
+// ❌ CANCEL
 // ==================
 app.post('/transactions/:id/cancel', async (req, res) => {
   try {
@@ -297,18 +453,17 @@ app.post('/transactions/:id/cancel', async (req, res) => {
 
     const trx = await prisma.transaction.findUnique({
       where: { id },
-      include: { orders: true },
+      include: { order: true },
     });
 
     if (!trx) return res.status(404).json({ message: 'Not found' });
 
-    // 🔥 BALIKIN SEAT SEMUA ORDER
-    for (const order of trx.orders) {
+    if (trx.order) {
       await prisma.events.update({
-        where: { id: order.eventId },
+        where: { id: trx.order.eventId },
         data: {
           availableSeats: {
-            increment: order.quantity,
+            increment: trx.order.quantity,
           },
         },
       });
@@ -320,41 +475,52 @@ app.post('/transactions/:id/cancel', async (req, res) => {
     });
 
     res.json({ message: 'Cancelled' });
+
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 });
 
 // ==================
-// AUTO EXPIRED (2 JAM FIX)
+// ⏳ AUTO EXPIRED (FIXED 🔥)
 // ==================
 cron.schedule('*/5 * * * *', async () => {
-  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  try {
+    const now = new Date();
 
-  const expired = await prisma.transaction.findMany({
-    where: {
-      status: 'PENDING',
-      createdAt: { lt: twoHoursAgo },
-    },
-    include: { orders: true },
-  });
+    const expired = await prisma.transaction.findMany({
+      where: {
+        status: 'PENDING',
+        expiredAt: { lt: now }, // ✅ pakai expiredAt
+      },
+      include: { order: true },
+    });
 
-  for (const trx of expired) {
-    for (const order of trx.orders) {
-      await prisma.events.update({
-        where: { id: order.eventId },
-        data: {
-          availableSeats: {
-            increment: order.quantity,
+    for (const trx of expired) {
+
+      if (trx.order) {
+        await prisma.events.update({
+          where: { id: trx.order.eventId },
+          data: {
+            availableSeats: {
+              increment: trx.order.quantity,
+            },
           },
-        },
+        });
+      }
+
+      await prisma.transaction.update({
+        where: { id: trx.id },
+        data: { status: 'EXPIRED' },
       });
     }
 
-    await prisma.transaction.update({
-      where: { id: trx.id },
-      data: { status: 'EXPIRED' },
-    });
+    if (expired.length > 0) {
+      console.log(`Expired ${expired.length} transaksi`);
+    }
+
+  } catch (error) {
+    console.error("CRON ERROR:", error);
   }
 });
 

@@ -64,7 +64,7 @@ export default function Header() {
           <>
             {/* 🔥 CHECKOUT LINK */}
             <Link to="/checkout" className="hover:text-blue-600">
-              CHECKOUT
+              TRANSAKSI
             </Link>
 
             <div className="relative">
