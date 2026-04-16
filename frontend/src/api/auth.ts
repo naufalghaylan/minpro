@@ -8,6 +8,7 @@ export type AuthUser = {
   username?: string;
   email: string;
   bio?: string | null;
+  profileImageUrl?: string | null;
   referralCode?: string;
   role: 'CUSTOMER' | 'EVENT_ORGANIZER';
   createdAt?: string;
@@ -39,6 +40,11 @@ export type UpdateProfileRequest = {
 };
 
 export type UpdateProfileResponse = {
+  message: string;
+  user: AuthUser;
+};
+
+export type UpdateProfilePictureResponse = {
   message: string;
   user: AuthUser;
 };
@@ -106,6 +112,17 @@ export const updateProfile = async (
   payload: UpdateProfileRequest,
 ): Promise<UpdateProfileResponse> => {
   const response = await api.patch<UpdateProfileResponse>('/auth/profile', payload);
+  return response.data;
+};
+
+export const updateProfilePicture = async (
+  file: File,
+): Promise<UpdateProfilePictureResponse> => {
+  const formData = new FormData();
+  formData.append('profileImage', file);
+
+  const response = await api.patch<UpdateProfilePictureResponse>('/auth/profile/picture', formData);
+
   return response.data;
 };
 
