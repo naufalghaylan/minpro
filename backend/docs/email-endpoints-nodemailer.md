@@ -1,20 +1,41 @@
-# Email Endpoints (Nodemailer)
+# Flow Dan Endpoint Email (Nodemailer + Mailtrap)
 
-Dokumen ini merangkum endpoint yang terkait pengiriman email via Nodemailer di backend.
+Dokumen ini menjelaskan flow backend dan endpoint untuk pemanggilan email reset password menggunakan Nodemailer dengan SMTP Mailtrap (sering ditulis mailtemp/mailtrap).
+
+## Tujuan
+
+- Menstandarkan cara backend mengirim email reset password.
+- Menjadi referensi frontend/QA untuk memanggil endpoint dan mengetes email.
+- Menjelaskan konfigurasi environment Mailtrap yang wajib ada.
 
 ## Base URL
 
-- Local: `http://localhost:3000`
-- Route group: `/auth`
+- Local backend: `http://localhost:3000`
+- Route group auth: `/auth`
 
 ## Endpoint Matrix
 
-| Method | Endpoint | Auth | Trigger Email | Kegunaan |
+| Method | Endpoint | Auth | Mengirim Email | Kegunaan |
 | --- | --- | --- | --- | --- |
-| POST | /auth/forgot-password | No | Yes | Kirim reset password link ke email user |
-| POST | /auth/reset-password | No | No | Set password baru menggunakan token dari email |
+| POST | /auth/forgot-password | Public | Ya | Generate reset token + kirim reset link ke email user |
+| POST | /auth/reset-password | Public | Tidak | Konsumsi token dari email dan set password baru |
 
-## 1) Forgot Password (Trigger Email)
+## Alur End-To-End
+
+1. Client memanggil `POST /auth/forgot-password` dengan email terdaftar.
+2. Backend validasi payload menggunakan Zod (`forgotPasswordSchema`).
+3. Backend generate token random (plaintext), hash token (`sha256`), set expiry 15 menit.
+4. Backend menyimpan hash token ke tabel `password_reset_tokens` dan hapus token lama user.
+5. Backend membuat reset link: `${FRONTEND_URL}/reset-password?token=<plaintextToken>`.
+6. Backend memanggil service email (`sendResetPasswordEmail`) untuk kirim email via Nodemailer.
+7. User klik link di email, frontend mengambil token query param.
+8. Frontend memanggil `POST /auth/reset-password` dengan `token` + `newPassword`.
+9. Backend hash token, verifikasi token valid, belum dipakai, dan belum expired.
+10. Backend update password user (bcrypt hash), lalu tandai token `used_at` supaya single use.
+
+## Detail Endpoint
+
+### 1) Forgot Password (Trigger Email)
 
 Endpoint:
 - `POST /auth/forgot-password`
@@ -27,10 +48,7 @@ Request body:
 }
 ```
 
-Validasi:
-- `email` wajib format email valid.
-
-Success response `200`:
+Response sukses `200`:
 
 ```json
 {
@@ -38,7 +56,7 @@ Success response `200`:
 }
 ```
 
-Error response `404` (email tidak terdaftar):
+Error `404` (email tidak terdaftar):
 
 ```json
 {
@@ -57,13 +75,7 @@ Validation error `400`:
 }
 ```
 
-Catatan:
-- Endpoint ini yang memanggil service Nodemailer (`sendResetPasswordEmail`).
-- Link reset diarahkan ke frontend URL:
-  - `${FRONTEND_URL}/reset-password?token=<plaintextToken>`
-  - Default `FRONTEND_URL`: `http://localhost:5173`
-
-## 2) Reset Password (Consume Token Dari Email)
+### 2) Reset Password (Use Token Dari Email)
 
 Endpoint:
 - `POST /auth/reset-password`
@@ -72,12 +84,12 @@ Request body:
 
 ```json
 {
-  "token": "token-dari-email",
+  "token": "plaintext-token-dari-email",
   "newPassword": "PasswordBaru123"
 }
 ```
 
-Success response `200`:
+Response sukses `200`:
 
 ```json
 {
@@ -85,7 +97,7 @@ Success response `200`:
 }
 ```
 
-Error response `400` (token invalid/expired):
+Error `400` (token invalid/expired/terpakai):
 
 ```json
 {
@@ -93,7 +105,7 @@ Error response `400` (token invalid/expired):
 }
 ```
 
-Error response `400` (password sama dengan password lama):
+Error `400` (password baru sama dengan password lama):
 
 ```json
 {
@@ -112,22 +124,33 @@ Validation error `400`:
 }
 ```
 
-## Nodemailer Setup (Yang Dipakai Endpoint)
+## Konfigurasi Nodemailer Dan Mailtrap (Mailtemp)
 
-Service file:
+Lokasi service:
 - `src/services/emailService.ts`
 
-SMTP env yang dipakai:
-- `MAIL_HOST` (default: `sandbox.smtp.mailtrap.io`)
-- `MAIL_PORT` (default: `2525`)
-- `MAIL_USER` (required)
-- `MAIL_PASS` (required)
-- `MAIL_FROM` (default: `Event Platform <no-reply@eventplatform.local>`)
+Environment variable:
 
-Template email:
+```env
+MAIL_HOST=sandbox.smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USER=<mailtrap-username>
+MAIL_PASS=<mailtrap-password>
+MAIL_FROM=Event Platform <no-reply@eventplatform.local>
+FRONTEND_URL=http://localhost:5173
+```
+
+Catatan penting:
+- `MAIL_USER` dan `MAIL_PASS` wajib ada. Jika tidak ada, backend akan throw error saat boot.
+- `MAIL_HOST` default ke `sandbox.smtp.mailtrap.io`.
+- `MAIL_PORT` default ke `2525`.
+
+## Template Email
+
+File template:
 - `src/templates/emails/reset-password.hbs`
 
-Template context:
+Context yang dikirim ke template:
 - `name`
 - `resetLink`
 - `supportEmail`
@@ -135,9 +158,9 @@ Template context:
 Subject email:
 - `Reset password Event Platform`
 
-## cURL Examples
+## Contoh Pemanggilan Endpoint
 
-### Request forgot password (kirim email)
+### cURL: request forgot password
 
 ```bash
 curl -X POST http://localhost:3000/auth/forgot-password \
@@ -147,7 +170,7 @@ curl -X POST http://localhost:3000/auth/forgot-password \
   }'
 ```
 
-### Reset password dari token email
+### cURL: reset password dari link email
 
 ```bash
 curl -X POST http://localhost:3000/auth/reset-password \
@@ -158,7 +181,27 @@ curl -X POST http://localhost:3000/auth/reset-password \
   }'
 ```
 
-## Ringkas Endpoint Email
+## Cara Testing Manual Di Mailtrap
 
-- `POST /auth/forgot-password` -> kirim email reset password via Nodemailer
-- `POST /auth/reset-password` -> gunakan token dari email untuk ganti password
+1. Jalankan backend dengan env `MAIL_*` valid.
+2. Hit endpoint forgot password.
+3. Buka inbox Mailtrap sandbox, cari email subject `Reset password Event Platform`.
+4. Pastikan link mengarah ke `${FRONTEND_URL}/reset-password?token=...`.
+5. Copy token dari URL, panggil endpoint reset password.
+6. Verifikasi response sukses dan token tidak bisa dipakai ulang.
+
+## Mapping Kode Backend
+
+- Routes: `src/routes/authRoutes.ts`
+- Controller: `src/controllers/authController.ts`
+- Service auth reset: `src/services/authService.ts`
+- Service email: `src/services/emailService.ts`
+- Validation: `src/validations/authValidation.ts`
+- Table token reset: `password_reset_tokens` (lihat Prisma schema dan migration)
+
+## Security Notes
+
+- Token reset disimpan sebagai hash (`sha256`), bukan plaintext.
+- Masa aktif token 15 menit.
+- Token single use (`used_at` diisi setelah dipakai).
+- Password baru selalu di-hash (bcrypt) sebelum update.
