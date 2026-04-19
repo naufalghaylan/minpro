@@ -12,6 +12,9 @@ import ProfilePage from "./pages/profile";
 import RequireAuth from "./components/RequireAuth";
 import PaymentPage from "./pages/transaksi/TransaksiPage";
 import AdminTransactionPage from "./pages/AdminTransactionPage/AdminTransactionPage";
+import VoucherPage from "./pages/VoucherPage/VoucherPage";
+import MyTicketsPage from "./pages/mytickets/mytickets";
+import TicketDetailPage from "./pages/TicketDetailPage/TicketDetailPage";
 
 function App() {
   return (
@@ -27,6 +30,9 @@ function App() {
       <Route path="/createevent" element={<CreateEvent />} />
       <Route path="/transactions/:id" element={<PaymentPage />} />
       <Route path="/verify" element={<AdminTransactionPage />} />
+      <Route path="/vouchers" element={<VoucherPage />} />
+      <Route path="/myticket" element={<MyTicketsPage />} />
+      <Route path="/ticketdetail/:id" element={<TicketDetailPage />} />
 
       <Route
         path="/profile"

@@ -8,8 +8,23 @@ import Header from "../../components/navbar";
 
 interface EventForm {
   name: string;
+  description: string;
+
   price: string;
   totalSeats: string;
+
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+
+  location: string;
+  city: string;
+
+  // DISKON
+  discountType: string;
+  discountValue: string;
+  discountStart: string;
+  discountEnd: string;
 }
 
 export default function CreateEvent() {
@@ -21,53 +36,60 @@ export default function CreateEvent() {
 
   const [form, setForm] = useState<EventForm>({
     name: "",
+    description: "",
+
     price: "",
     totalSeats: "",
+
+    eventDate: "",
+    startTime: "",
+    endTime: "",
+
+    location: "",
+    city: "",
+
+    discountType: "",
+    discountValue: "",
+    discountStart: "",
+    discountEnd: "",
   });
 
-  // 🔥 simpan file image
   const [images, setImages] = useState<File[]>([]);
   const [preview, setPreview] = useState<string[]>([]);
 
-  // 🔥 proteksi role
   useEffect(() => {
     if (user === null) return;
 
-    if (!user) {
-      navigate("/login");
-    } else if (user.role !== "EVENT_ORGANIZER") {
-      navigate("/");
-    }
+    if (!user) navigate("/login");
+    else if (user.role !== "EVENT_ORGANIZER") navigate("/");
   }, [user, navigate]);
 
-  // 🔥 input text
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
 
-    if ((name === "price" || name === "totalSeats") && Number(value) < 0) {
-      return;
-    }
+    if (
+      (name === "price" || name === "totalSeats" || name === "discountValue") &&
+      Number(value) < 0
+    ) return;
 
     setForm({ ...form, [name]: value });
   };
 
-  // 🔥 upload image
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
     const fileArray = Array.from(files);
-
     setImages(fileArray);
 
-    // preview image
     const previewUrls = fileArray.map((file) =>
       URL.createObjectURL(file)
     );
     setPreview(previewUrls);
   };
 
-  // 🔥 submit pakai FormData
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -77,26 +99,22 @@ export default function CreateEvent() {
     try {
       const formData = new FormData();
 
-      formData.append("name", form.name);
-      formData.append("price", form.price);
-      formData.append("totalSeats", form.totalSeats);
+      Object.entries(form).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
 
-      // multiple images
       images.forEach((file) => {
         formData.append("images", file);
       });
 
       await api.post("/events", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       alert("Event berhasil dibuat 🚀");
       navigate("/");
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        console.log(err.response);
         setError(err.response?.data?.message || "Terjadi error");
       } else {
         setError("Unknown error");
@@ -112,104 +130,87 @@ export default function CreateEvent() {
 
   return (
     <>
-    <Header/>
-    <div className="max-w-xl mx-auto mt-10 p-6 shadow-lg rounded-xl">
-      <h1 className="text-2xl font-bold mb-5">Create Event</h1>
+      <Header />
 
-      {error && <p className="text-red-500 mb-3">{error}</p>}
+      <div className="max-w-xl mx-auto mt-10 p-6 shadow-lg rounded-xl bg-white">
+        <h1 className="text-2xl font-bold mb-5">Create Event</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="text"
-          name="name"
-          placeholder="Nama Event"
-          onChange={handleChange}
-          className="w-full border p-2 rounded"
-          required
-        />
+        {error && <p className="text-red-500 mb-3">{error}</p>}
 
-        <input
-          type="number"
-          name="price"
-          placeholder="Harga"
-          min="0"
-          onChange={handleChange}
-          className="w-full border p-2 rounded"
-          required
-        />
+        <form onSubmit={handleSubmit} className="space-y-4">
 
-        <input
-          type="number"
-          name="totalSeats"
-          placeholder="Total Seats"
-          min="0"
-          onChange={handleChange}
-          className="w-full border p-2 rounded"
-          required
-        />
+          {/* BASIC */}
+          <input name="name" placeholder="Nama Event" onChange={handleChange} className="w-full border p-2 rounded" required />
 
+          <textarea name="description" placeholder="Deskripsi Event" onChange={handleChange} className="w-full border p-2 rounded" />
 
-{/* 🔥 Upload Image */}
-<div>
-  <p className="font-semibold mb-2">Upload Images</p>
+          <input type="number" name="price" placeholder="Harga" onChange={handleChange} className="w-full border p-2 rounded" required />
 
-  {/* Upload Box */}
-  <label className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-    
-    <span className="mb-3 text-sm text-gray-500">
-      Klik untuk upload gambar
-    </span>
+          <input type="number" name="totalSeats" placeholder="Total Seats" onChange={handleChange} className="w-full border p-2 rounded" required />
 
-    <span className="px-4 py-2 bg-black text-white rounded-md shadow hover:bg-gray-800 transition">
-      Browse Files
-    </span>
+          {/* EVENT DETAIL */}
+          <div className="border p-4 rounded bg-gray-50">
+            <p className="font-semibold mb-2">Detail Event</p>
 
-    <input
-      type="file"
-      multiple
-      accept="image/*"
-      onChange={handleImageChange}
-      className="hidden"
-    />
-  </label>
+            <input type="date" name="eventDate" onChange={handleChange} className="w-full border p-2 rounded mb-2" />
 
-  {/* Preview + Remove */}
-  <div className="grid grid-cols-3 gap-3 mt-4">
-    {preview.map((src, i) => (
-      <div key={i} className="relative group">
-        <img
-          src={src}
-          alt="preview"
-          className="h-24 w-full object-cover rounded-lg shadow"
-        />
+            <input type="time" name="startTime" onChange={handleChange} className="w-full border p-2 rounded mb-2" />
 
-        {/* ❌ Remove button */}
-        <button
-          type="button"
-          onClick={() => {
-            const newImages = images.filter((_, index) => index !== i);
-            const newPreview = preview.filter((_, index) => index !== i);
+            <input type="time" name="endTime" onChange={handleChange} className="w-full border p-2 rounded" />
+          </div>
 
-            setImages(newImages);
-            setPreview(newPreview);
-          }}
-          className="absolute top-1 right-1 bg-black text-white text-xs px-2 py-1 rounded-full opacity-80 hover:opacity-100"
-        >
-          ✕
-        </button>
+          {/* LOCATION */}
+          <div className="border p-4 rounded bg-gray-50">
+            <p className="font-semibold mb-2">Lokasi</p>
+
+            <input name="location" placeholder="Alamat lengkap" onChange={handleChange} className="w-full border p-2 rounded mb-2" />
+
+            <input name="city" placeholder="Kota" onChange={handleChange} className="w-full border p-2 rounded" />
+
+            {/* GOOGLE MAPS PREVIEW */}
+
+            <a
+  href={`https://www.google.com/maps?q=${encodeURIComponent(
+    `${form.location}, ${form.city}`
+  )}`}
+  target="_blank"
+  className="text-blue-500 text-sm mt-2 inline-block"
+>
+  Buka di Google Maps
+</a>
+          </div>
+
+          {/* DISKON */}
+          <div className="border p-4 rounded bg-gray-50">
+            <p className="font-semibold mb-2">Diskon</p>
+
+            <select name="discountType" onChange={handleChange} className="w-full border p-2 rounded mb-2">
+              <option value="">Tanpa Diskon</option>
+              <option value="PERCENT">Persen (%)</option>
+              <option value="FIXED">Nominal (Rp)</option>
+            </select>
+
+            <input type="number" name="discountValue" placeholder="Nilai Diskon" onChange={handleChange} className="w-full border p-2 rounded mb-2" disabled={!form.discountType} />
+
+            <input type="date" name="discountStart" onChange={handleChange} className="w-full border p-2 rounded mb-2" disabled={!form.discountType} />
+
+            <input type="date" name="discountEnd" onChange={handleChange} className="w-full border p-2 rounded" disabled={!form.discountType} />
+          </div>
+
+          {/* IMAGE */}
+          <input type="file" multiple accept="image/*" onChange={handleImageChange} />
+
+          <div className="grid grid-cols-3 gap-3">
+            {preview.map((src, i) => (
+              <img key={i} src={src} className="h-24 w-full object-cover rounded" />
+            ))}
+          </div>
+
+          <button type="submit" disabled={loading} className="w-full bg-blue-500 text-white py-2 rounded">
+            {loading ? "Loading..." : "Create Event"}
+          </button>
+        </form>
       </div>
-    ))}
-  </div>
-</div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-        >
-          {loading ? "Loading..." : "Create Event"}
-        </button>
-      </form>
-    </div></>
+    </>
   );
 }

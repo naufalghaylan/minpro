@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "orders" ADD COLUMN     "finalPrice" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "price" INTEGER NOT NULL DEFAULT 0;

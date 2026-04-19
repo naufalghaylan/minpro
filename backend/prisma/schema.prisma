@@ -27,6 +27,7 @@ model User {
   coupons      coupons[]
   transactions transaction[]
   passwordResetTokens password_reset_tokens[]
+  reviews reviews[]
   @@index([referredBy])
   @@map("users")
 }
@@ -49,16 +50,34 @@ model password_reset_tokens {
 model events {
   id               String         @id @default(uuid())
   name             String         @unique @db.VarChar(255)
+  description      String?        
+
   price            Float
   totalSeats       Int
   availableSeats   Int
+
+  eventDate        DateTime?     
+  startTime        String?        
+  endTime          String?       
+
+  location         String?        
+  city             String?        
+
   eventOrganizerId String
   created_at       DateTime       @default(now())
   deleted_at       DateTime?
   updated_at       DateTime       @updatedAt
+
+  discountType     String?        // PERCENT | FIXED
+  discountValue    Int?
+  discountStart    DateTime?
+  discountEnd      DateTime?
+
   event_images     event_images[]
   users            User           @relation(fields: [eventOrganizerId], references: [id])
   orders           orders[]
+  vouchers vouchers[]
+  reviews reviews[]
 }
 
 model event_images {
@@ -67,7 +86,41 @@ model event_images {
   url     String
   event  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
+model vouchers {
+  id            String   @id @default(uuid())
+  code          String   @unique
 
+  discountType  String   // PERCENT | FIXED
+  discountValue Int
+
+  quota         Int?
+  used          Int      @default(0)
+
+  startDate     DateTime
+  endDate       DateTime
+
+  // 🔥 RELASI KE EVENT
+  eventId       String
+  event         events   @relation(fields: [eventId], references: [id])
+
+  created_at    DateTime @default(now())
+}
+model reviews {
+  id        String   @id @default(uuid())
+
+  rating    Int      // 1 - 5
+  comment   String?
+
+  userId    String
+  eventId   String
+
+  user      User     @relation(fields: [userId], references: [id])
+  event     events   @relation(fields: [eventId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId]) // 🔥 1 user cuma bisa review 1x
+}
 model orders {
   id            String   @id @default(uuid())
   customerId    String
@@ -77,7 +130,8 @@ model orders {
   transactionId String   @unique  // 🔥 penting: 1 order = 1 transaction
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
+price       Int @default(0)
+finalPrice  Int @default(0)     
   users         User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   event         events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   transaction   transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
@@ -92,7 +146,7 @@ model transaction {
   updatedAt    DateTime @updatedAt
   expiredAt    DateTime?
   user         User   @relation(fields: [userId], references: [id])
-  order        orders? 
+  order        orders?
 }
 model wallets {
   id        String   @id @default(uuid())

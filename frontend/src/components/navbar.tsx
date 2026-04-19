@@ -35,7 +35,17 @@ export default function Header() {
         <Link to="/events" className="hover:text-blue-600">
           EVENTS
         </Link>
-
+       {/* 🔥 KHUSUS COSTUMEN */}
+        {user?.role === "CUSTOMER" && (
+          <>
+             <Link to="/checkout" className="hover:text-blue-600">
+              TRANSAKSI
+            </Link>
+            <Link to="/myticket" className="hover:text-blue-600">
+              MY TICKET
+            </Link>
+          </>
+        )}
         {/* 🔥 KHUSUS EVENT ORGANIZER */}
         {user?.role === "EVENT_ORGANIZER" && (
           <>
@@ -45,6 +55,9 @@ export default function Header() {
 
             <Link to="/verify" className="hover:text-blue-600">
               VERIFIKASI PEMBELIAN
+            </Link>
+            <Link to="/vouchers" className="hover:text-blue-600">
+              VOUCHER
             </Link>
           </>
         )}
@@ -62,10 +75,6 @@ export default function Header() {
         {/* ✅ Kalau sudah login */}
         {user && (
           <>
-            {/* 🔥 CHECKOUT LINK */}
-            <Link to="/checkout" className="hover:text-blue-600">
-              TRANSAKSI
-            </Link>
 
             <div className="relative">
               <button

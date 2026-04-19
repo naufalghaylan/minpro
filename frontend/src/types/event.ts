@@ -13,17 +13,23 @@ export type event_images = {
 // ==========================
 // EVENT TYPE (MAIN)
 // ==========================
-export type Event = {
+export interface Event {
   id: string;
   name: string;
   price: number;
   totalSeats: number;
   availableSeats: number;
-  eventOrganizerId: string;
+  city?: string; // 🔥 WAJIB
+  // 🔥 DISKON
+  discountType?: string | null;
+  discountValue?: number | null;
+  discountStart?: string | null;
+  discountEnd?: string | null;
 
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+  // 🔥 HASIL HITUNG BACKEND
+  finalPrice?: number;
 
-  event_images: event_images[];
-};
+  event_images: {
+    url: string;
+  }[];
+}
