@@ -87,122 +87,36 @@ export default function Header() {
                 BUAT EVENT
               </Link>
 
-              <Link to="/verify" className="hover:text-blue-600 transition">
-                VERIFIKASI PEMBELIAN
-              </Link>
-            </>
-          )}
-
-          {!user && (
-            <Link
-              to="/login"
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-            >
-              LOGIN
+        <Link to="/events" className="hover:text-blue-600">
+          EVENTS
+        </Link>
+       {/* 🔥 KHUSUS COSTUMEN */}
+        {user?.role === "CUSTOMER" && (
+          <>
+             <Link to="/checkout" className="hover:text-blue-600">
+              TRANSAKSI
+            </Link>
+            <Link to="/myticket" className="hover:text-blue-600">
+              MY TICKET
+            </Link>
+          </>
+        )}
+        {/* 🔥 KHUSUS EVENT ORGANIZER */}
+        {user?.role === "EVENT_ORGANIZER" && (
+          <>
+            <Link to="/createevent" className="hover:text-blue-600">
+              BUAT EVENT
             </Link>
           )}
 
-          {user && (
-            <>
-              <Link to="/checkout" className="hover:text-blue-600 transition">
-                CHECKOUT
-              </Link>
-
-              <div className="relative">
-                <button
-                  onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                  className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 transition"
-                >
-                  ☰
-                </button>
-
-                {profileDropdownOpen && (
-                  <div className="absolute right-0 mt-3 w-64 bg-white border rounded shadow-lg z-50">
-                    
-                    {/* PROFILE CARD */}
-                    <div className="p-4 border-b">
-                      <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-linear-to-br from-slate-100 via-blue-50 to-amber-100 overflow-hidden shrink-0">
-                          {user.profileImageUrl ? (
-                            <img
-                              src={user.profileImageUrl}
-                              alt={user.name || 'User'}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="h-full w-full flex items-center justify-center font-semibold text-sm text-slate-500">
-                              {avatarLabel(user.name)}
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">
-                            {user.name || "User"}
-                          </p>
-                          <p className="text-sm text-gray-500 truncate">
-                            {user.email || "email@gmail.com"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* DROPDOWN MENU */}
-                    <ul className="p-2">
-                      <li
-                        className="p-2 hover:bg-gray-100 cursor-pointer rounded transition"
-                        onClick={() => {
-                          setProfileDropdownOpen(false);
-                          navigate("/profile");
-                        }}
-                      >
-                        Profile
-                      </li>
-
-                      {user.role === "EVENT_ORGANIZER" && (
-                        <li className="p-2 hover:bg-gray-100 cursor-pointer rounded transition">
-                          <Link to="/dashboard-eo">Dashboard EO</Link>
-                        </li>
-                      )}
-
-                      <li>
-                        <button
-                          onClick={handleLogout}
-                          className="w-full text-left px-2 py-2 hover:bg-gray-100 text-red-500 rounded transition"
-                        >
-                          Logout
-                        </button>
-                      </li>
-                    </ul>
-
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </nav>
-
-        {/* MOBILE HAMBURGER BUTTON */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden shrink-0 p-2 rounded hover:bg-gray-100 transition"
-          title={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
-          aria-label={mobileMenuOpen ? "Tutup menu" : "Buka menu"}
-        >
-          {mobileMenuOpen ? (
-            <X size={24} className="text-gray-800" />
-          ) : (
-            <Menu size={24} className="text-gray-800" />
-          )}
-        </button>
-      </header>
-
-      {/* MOBILE MENU BACKDROP */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
+            <Link to="/verify" className="hover:text-blue-600">
+              VERIFIKASI PEMBELIAN
+            </Link>
+            <Link to="/vouchers" className="hover:text-blue-600">
+              VOUCHER
+            </Link>
+          </>
+        )}
 
       {/* MOBILE SIDEBAR MENU */}
       <div
@@ -263,6 +177,11 @@ export default function Header() {
           >
             HOME
           </Link>
+        )}
+
+        {/* ✅ Kalau sudah login */}
+        {user && (
+          <>
 
           <Link
             to="/events"

@@ -1,125 +1,303 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Header from "../../components/navbar";
-import api from "../../api"; // 🔥 pakai api instance
+import api from "../../api";
 import { useAuthStore } from "../../store/auth";
 
 export default function OrderPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-
-  // 🔥 ambil dari zustand
-  const user = useAuthStore((s) => s.user);
   const token = useAuthStore((s) => s.token);
 
   const [event, setEvent] = useState<any>(null);
   const [quantity, setQuantity] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  // 🔥 VOUCHER STATE
+  const [voucherCode, setVoucherCode] = useState("");
+  const [preview, setPreview] = useState<any>(null);
+  const [loadingVoucher, setLoadingVoucher] = useState(false);
+
+  const BASE_URL = "http://localhost:3000";
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const fetchEvent = async () => {
-      try {
-        const res = await api.get(`/events/${eventId}`);
-        setEvent(res.data);
-      } catch (error) {
-        console.error("ERROR FETCH EVENT:", error);
-      }
+      const res = await api.get(`/events/${eventId}`);
+      setEvent(res.data);
     };
-
     if (eventId) fetchEvent();
   }, [eventId]);
 
-  const handleOrder = async () => {
+  const getImage = () => {
+    const img =
+      event?.event_images?.[0] ||
+      event?.eventImages?.[0] ||
+      event?.images?.[0];
 
-    if (!token) {
-      alert("HARAP LOGIN TERLEBIH DAHULU");
-      navigate("/login");
-      return;
+    if (!img) return "/no-image.png";
+
+    return `${BASE_URL}/uploads/${img.url || img.image || img.filename}`;
+  };
+
+  const getCountdown = (end?: string | null) => {
+    if (!end) return null;
+
+    const distance = new Date(end).getTime() - now;
+    if (distance <= 0) return "Promo berakhir";
+
+    const h = Math.floor(distance / (1000 * 60 * 60));
+    const m = Math.floor((distance / (1000 * 60)) % 60);
+    const s = Math.floor((distance / 1000) % 60);
+
+    return `${h}j ${m}m ${s}d`;
+  };
+
+  const calculateFinalPrice = () => {
+    const nowTime = new Date().getTime();
+
+    if (
+      event.discountType &&
+      event.discountValue &&
+      event.discountStart &&
+      event.discountEnd
+    ) {
+      const start = new Date(event.discountStart).getTime();
+      const end = new Date(event.discountEnd).getTime();
+
+      if (nowTime >= start && nowTime <= end) {
+        if (event.discountType === "PERCENT") {
+          return event.price - (event.price * event.discountValue) / 100;
+        }
+        if (event.discountType === "FIXED") {
+          return event.price - event.discountValue;
+        }
+      }
     }
 
-    if (!quantity || quantity < 1) {
-      alert("Minimal beli 1 ticket!");
+    return event.price;
+  };
+
+  // 🔥 APPLY VOUCHER (PREVIEW)
+  const applyVoucher = async () => {
+    if (!token) {
+      alert("Login dulu!");
       return;
     }
 
     try {
-      await api.post(`/orders/${eventId}`, { quantity }, {
-  headers: {
-    Authorization: `Bearer ${token}`
-  }
-});
+      setLoadingVoucher(true);
 
-      alert("Order berhasil! silahkan cek halaman transaksi.");
-      navigate("/"); // opsional redirect
+      const res = await api.post(
+        "/preview",
+        {
+          eventId,
+          quantity,
+          voucherCode,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setPreview(res.data);
     } catch (err: any) {
-      console.error("ORDER ERROR:", err.response?.data || err.message);
-      alert(err.response?.data?.message || "Gagal order");
+      alert(err.response?.data?.message);
+      setPreview(null);
+    } finally {
+      setLoadingVoucher(false);
     }
   };
 
   if (!event) return <p className="text-center mt-10">Loading...</p>;
 
+  const price = Number(event.price);
+  const baseFinalPrice = Math.max(0, calculateFinalPrice());
+  const isDiscount = baseFinalPrice < price;
+
+  // 🔥 PAKAI PREVIEW KALAU ADA
+  const finalPrice = preview?.finalPrice ?? baseFinalPrice;
+  const total = preview?.totalAmount ?? finalPrice * quantity;
+
+  const countdown = getCountdown(event.discountEnd);
+
+  const handleCheckout = async () => {
+    if (!token) {
+      alert("Harap login dulu!");
+      navigate("/login");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const res = await api.post(
+        "/checkout",
+        {
+          eventId,
+          quantity,
+          voucherCode, // 🔥 kirim voucher
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      navigate(`/transactions/${res.data.transactionId}`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Checkout gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div>
+    <div className="bg-gray-100 min-h-screen">
       <Header />
-      <div className="min-h-screen flex">
-        
-        {/* LEFT IMAGE */}
-        <div className="w-1/2 hidden md:block">
+
+      <div className="max-w-6xl mx-auto p-4 grid md:grid-cols-2 gap-6">
+
+        {/* IMAGE */}
+        <div className="relative rounded-2xl overflow-hidden shadow">
           <img
-            src={event.event_images?.[0]?.url}
-            className="w-full h-full object-fill"
+            src={getImage()}
+            className="w-full h-[300px] md:h-full object-cover"
           />
+
+          {isDiscount && (
+            <div className="absolute top-4 left-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm">
+              🔥 Diskon
+            </div>
+          )}
+
+          {isDiscount && countdown && (
+            <div className="absolute bottom-4 right-4 bg-black/70 text-white px-3 py-1 rounded text-sm">
+              ⏰ {countdown}
+            </div>
+          )}
         </div>
 
-        {/* RIGHT */}
-        <div className="w-full md:w-1/2 flex items-center justify-center p-10">
-          <div className="w-full max-w-md">
+        {/* CARD */}
+        <div className="bg-white p-6 rounded-2xl shadow-lg">
 
-            <h1 className="text-2xl font-bold mb-2">{event.name}</h1>
-            <p className="text-gray-500 mb-6">Checkout Ticket</p>
+          <h1 className="text-2xl font-bold">{event.name}</h1>
 
-            {/* 🔥 tampilkan user */}
-            {user && (
-              <p className="text-sm mb-4">
-                Login sebagai: <b>{user.name}</b>
+          <p className="text-gray-500 mb-2">{event.description}</p>
+
+          <div className="text-sm text-gray-600 mb-4 space-y-1">
+            <p>
+              📅 {event.eventDate
+                ? new Date(event.eventDate).toLocaleDateString("id-ID")
+                : "-"}
+            </p>
+
+            <p>⏰ {event.startTime} - {event.endTime}</p>
+            <p>📍 {event.location}, {event.city}</p>
+          </div>
+
+          {/* PRICE */}
+          <div className="mb-4">
+            {isDiscount && (
+              <p className="line-through text-gray-400">
+                Rp {price.toLocaleString()}
               </p>
             )}
 
-            <div className="mb-4">
-              <p className="text-sm text-gray-500">Harga</p>
-              <p className="text-lg font-semibold">Rp {event.price}</p>
-            </div>
-
-            <div className="mb-4">
-              <label className="text-sm">Jumlah Ticket</label>
-              <input
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => {
-                  let val = Number(e.target.value);
-                  if (!val || val < 1) val = 1;
-                  setQuantity(val);
-                }}
-                className="w-full border p-2 rounded mt-1"
-              />
-            </div>
-
-            <div className="mb-6">
-              <p className="text-sm text-gray-500">Total</p>
-              <p className="text-xl font-bold">
-                Rp {event.price * quantity}
-              </p>
-            </div>
-
-            <button
-              onClick={handleOrder}
-              className="w-full py-2 rounded text-white bg-blue-600 hover:bg-blue-700"
-            >
-              Checkout
-            </button>
-
+            <p className="text-3xl font-bold text-blue-600">
+              Rp {finalPrice.toLocaleString()}
+            </p>
           </div>
+
+          {/* QUANTITY */}
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-medium">Jumlah</span>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                className="w-8 h-8 rounded-full bg-gray-200"
+              >-</button>
+
+              <span className="text-lg font-semibold">{quantity}</span>
+
+              <button
+                onClick={() => setQuantity((q) => q + 1)}
+                className="w-8 h-8 rounded-full bg-gray-200"
+              >+</button>
+            </div>
+          </div>
+
+          {/* 🔥 VOUCHER INPUT */}
+<div className="mb-4">
+  <div className="flex border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+
+    <input
+      value={voucherCode}
+      onChange={(e) => setVoucherCode(e.target.value)}
+      placeholder="Masukkan kode voucher"
+      className="flex-1 px-3 py-2 outline-none"
+    />
+
+    <button
+      onClick={applyVoucher}
+      disabled={!voucherCode || loadingVoucher}
+      className="px-4 bg-blue-600 text-white text-sm font-semibold disabled:bg-gray-300"
+    >
+      {loadingVoucher ? "..." : "Apply →"}
+    </button>
+
+  </div>
+</div>
+
+          {/* 🔥 SUMMARY */}
+          <div className="border-t pt-4 space-y-2 text-sm">
+
+            <div className="flex justify-between">
+              <span>Harga x {quantity}</span>
+              <span>Rp {(price * quantity).toLocaleString()}</span>
+            </div>
+
+            {isDiscount && (
+              <div className="flex justify-between text-red-500">
+                <span>Diskon Event</span>
+                <span>
+                  - Rp {((price - baseFinalPrice) * quantity).toLocaleString()}
+                </span>
+              </div>
+            )}
+
+            {preview?.voucher && (
+              <div className="flex justify-between text-green-600">
+                <span>Voucher ({preview.voucher})</span>
+                <span>
+                  - Rp {preview.voucherDiscount.toLocaleString()}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between font-bold text-lg">
+              <span>Total</span>
+              <span className="text-blue-600">
+                Rp {total.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* BUTTON */}
+          <button
+            onClick={handleCheckout}
+            disabled={loading}
+            className="w-full mt-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-500 to-indigo-600"
+          >
+            {loading ? "Processing..." : "Checkout"}
+          </button>
         </div>
       </div>
     </div>
