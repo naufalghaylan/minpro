@@ -6,6 +6,7 @@ import { prisma } from '../configs/prisma';
 import { comparePassword, hashPassword } from './passwordService';
 import { generateAccessToken } from './jwtService';
 import { sendResetPasswordEmail } from './emailService';
+import { uploadProfileImageToCloudinary } from './cloudinaryService';
 import type { ChangePasswordInput, ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, UpdateProfileInput } from '../validations/authValidation';
 
 const REFERRAL_CODE_LENGTH = 8;
@@ -92,13 +93,14 @@ const sanitizeUser = (user: {
   username: string;
   email: string;
   bio: string | null;
+  profileImageUrl: string | null;
   role: RoleType;
   referralCode: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
 }) => {
-  const { id, name, username, email, bio, role, referralCode, createdAt, updatedAt, deletedAt } = user;
+  const { id, name, username, email, bio, profileImageUrl, role, referralCode, createdAt, updatedAt, deletedAt } = user;
 
   return {
     id,
@@ -106,6 +108,7 @@ const sanitizeUser = (user: {
     username,
     email,
     bio,
+    profileImageUrl,
     role,
     referralCode,
     createdAt,
@@ -278,6 +281,27 @@ export const updateUserProfile = async (userId: string, input: UpdateProfileInpu
       name: input.name ?? undefined,
       username: input.username ?? undefined,
       bio: input.bio === undefined ? undefined : input.bio,
+    },
+  });
+
+  return sanitizeUser(updatedUser);
+};
+
+export const updateUserProfileImage = async (userId: string, profileImageFile: Express.Multer.File) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+
+  const uploadResult = await uploadProfileImageToCloudinary(profileImageFile.buffer, user.id, user.username);
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      profileImageUrl: uploadResult.secureUrl,
     },
   });
 

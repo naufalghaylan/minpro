@@ -7,6 +7,7 @@ type User = {
   username?: string;
   email: string;
   bio?: string | null;
+  profileImageUrl?: string | null;
   referralCode?: string;
   role: "CUSTOMER" | "EVENT_ORGANIZER";
 };

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { RoleType } from '@prisma/client';
-import { changePassword, forgotPassword, getMe, getWalletAndCoupons, login, register, resetPassword, updateProfile } from '../controllers/authController';
+import { changePassword, forgotPassword, getMe, getWalletAndCoupons, login, register, resetPassword, updateProfile, updateProfilePicture } from '../controllers/authController';
 import { authMiddleware } from '../middlewares/authMiddleware';
+import { profileImageUpload } from '../middlewares/profileImageUpload';
 import { roleGuard } from '../middlewares/roleGuard';
 import { validateBody } from '../middlewares/validateRequest';
 import { changePasswordSchema, forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema, updateProfileSchema } from '../validations/authValidation';
@@ -16,6 +17,7 @@ router.post('/reset-password', validateBody(resetPasswordSchema), resetPassword)
 // Example JWT-protected endpoint
 router.get('/me', authMiddleware, getMe);
 router.patch('/profile', authMiddleware, validateBody(updateProfileSchema), updateProfile);
+router.patch('/profile/picture', authMiddleware, profileImageUpload, updateProfilePicture);
 router.patch('/change-password', authMiddleware, validateBody(changePasswordSchema), changePassword);
 router.get('/wallet-and-coupons', authMiddleware, getWalletAndCoupons);
 

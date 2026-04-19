@@ -9,6 +9,7 @@ import {
   requestPasswordReset,
   resetUserPassword,
   updateUserProfile,
+  updateUserProfileImage,
 } from '../services/authService';
 import type { AuthRequest } from '../types/auth';
 
@@ -63,6 +64,23 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
 
     const user = await updateUserProfile(req.user.id, req.body);
     return res.status(200).json({ message: 'Profile updated successfully', user });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const updateProfilePicture = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Profile image file is required.' });
+    }
+
+    const user = await updateUserProfileImage(req.user.id, req.file);
+    return res.status(200).json({ message: 'Profile picture updated successfully', user });
   } catch (error) {
     return handleError(res, error);
   }

@@ -83,9 +83,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-md z-10 px-4 py-10">
         <div className="bg-white rounded-xl shadow-xl p-8 flex flex-col items-center border border-gray-100">
           <h2 className="text-xl font-bold mb-2 text-gray-800 text-center tracking-tight">Buat Akun Baru</h2>
-          <p className="text-sm text-gray-500 text-center mb-6">
+          {/* <p className="text-sm text-gray-500 text-center mb-6">
             Daftar sebagai customer atau organizer dengan tampilan yang sama seperti login.
-          </p>
+          </p> */}
 
           <form onSubmit={handleSubmit(onSubmit)} className="w-full space-y-4">
             <div>
