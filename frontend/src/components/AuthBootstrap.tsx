@@ -12,27 +12,41 @@ import api from '../api';
 
 export default function AuthBootstrap() {
   const setAuth = useAuthStore((s) => s.setAuth);
+  const setAccessToken = useAuthStore((s) => s.setAccessToken);
   const setHydrated = useAuthStore((s) => s.setHydrated);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
-    if (!token) {
-      setHydrated(true);
-      return;
-    }
+    const refreshToken = localStorage.getItem('refreshToken');
 
-    api.get('/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        setAuth(res.data.user, token);
-      })
-      .catch(() => {
-        localStorage.removeItem('accessToken');
-      })
-      .finally(() => {
+    const fetchMe = async () => {
+      if (!token && !refreshToken) {
         setHydrated(true);
-      });
+        return;
+      }
+
+      try {
+        if (!token && refreshToken) {
+          const refreshResponse = await api.post('/auth/refresh', { refreshToken });
+          localStorage.setItem('accessToken', refreshResponse.data.accessToken);
+          setAccessToken(refreshResponse.data.accessToken);
+        }
+
+        const response = await api.get('/auth/me');
+        const currentToken = localStorage.getItem('accessToken');
+
+        if (currentToken) {
+          setAuth(response.data.user, currentToken);
+        }
+      } catch {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      } finally {
+        setHydrated(true);
+      }
+    };
+
+    void fetchMe();
   }, [setAuth, setHydrated]);
   return null;
 }

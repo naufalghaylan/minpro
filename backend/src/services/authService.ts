@@ -4,9 +4,11 @@ import voucherCodeGenerator from 'voucher-code-generator';
 import { AppError } from '../errors/app.error';
 import { prisma } from '../configs/prisma';
 import { comparePassword, hashPassword } from './passwordService';
-import { generateAccessToken } from './jwtService';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './jwtService';
 import { sendResetPasswordEmail } from './emailService';
+import { uploadProfileImageToCloudinary } from './cloudinaryService';
 import type { ChangePasswordInput, ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, UpdateProfileInput } from '../validations/authValidation';
+import type { LogoutInput, RefreshTokenInput } from '../validations/authValidation';
 
 const REFERRAL_CODE_LENGTH = 8;
 const REFERRAL_CODE_MAX_ATTEMPTS = 10;
@@ -18,6 +20,7 @@ const COUPON_CODE_LENGTH = 10;
 const COUPON_CODE_MAX_ATTEMPTS = 10;
 const RESET_TOKEN_BYTES = 32;
 const RESET_PASSWORD_TOKEN_EXPIRATION_MINUTES = 15;
+const REFRESH_TOKEN_EXPIRATION_DAYS = 7;
 
 const getExpirationDateFromNow = (months: number) => {
   const expirationDate = new Date();
@@ -31,6 +34,12 @@ const getResetTokenExpirationDate = () => {
 
 const hashToken = (token: string) => {
   return createHash('sha256').update(token).digest('hex');
+};
+
+const getRefreshTokenExpirationDate = () => {
+  const expirationDate = new Date();
+  expirationDate.setDate(expirationDate.getDate() + REFRESH_TOKEN_EXPIRATION_DAYS);
+  return expirationDate;
 };
 
 const createResetToken = () => {
@@ -92,13 +101,14 @@ const sanitizeUser = (user: {
   username: string;
   email: string;
   bio: string | null;
+  profileImageUrl: string | null;
   role: RoleType;
   referralCode: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
 }) => {
-  const { id, name, username, email, bio, role, referralCode, createdAt, updatedAt, deletedAt } = user;
+  const { id, name, username, email, bio, profileImageUrl, role, referralCode, createdAt, updatedAt, deletedAt } = user;
 
   return {
     id,
@@ -106,6 +116,7 @@ const sanitizeUser = (user: {
     username,
     email,
     bio,
+    profileImageUrl,
     role,
     referralCode,
     createdAt,
@@ -163,11 +174,12 @@ export const registerUser = async (input: RegisterInput) => {
     if (referredBy) {
       const rewardExpiresAt = getExpirationDateFromNow(REWARD_EXPIRATION_MONTHS);
 
+      // 1. Tambah point ke referrer
       await tx.wallets.upsert({
-        where: { userId: createdUser.id },
+        where: { userId: referredBy },
         create: {
           id: randomUUID(),
-          userId: createdUser.id,
+          userId: referredBy,
           balance: REFERRAL_REWARD_POINTS,
           expiresAt: rewardExpiresAt,
         },
@@ -180,8 +192,9 @@ export const registerUser = async (input: RegisterInput) => {
         },
       });
 
+      // 2. Beri coupon ke user baru
       const existingCoupon = await tx.coupons.findFirst({
-        where: { userId: referredBy },
+        where: { userId: createdUser.id },
         select: { id: true },
       });
 
@@ -191,7 +204,7 @@ export const registerUser = async (input: RegisterInput) => {
         await tx.coupons.create({
           data: {
             id: randomUUID(),
-            userId: referredBy,
+            userId: createdUser.id,
             code: couponCode,
             source: CouponSource.REFERRAL_SIGNUP,
             amount: REFERRAL_COUPON_DISCOUNT_PERCENT,
@@ -234,9 +247,74 @@ export const loginUser = async (input: LoginInput) => {
     name: user.name,
   });
 
+  const refreshToken = generateRefreshToken({
+    id: user.id,
+    role: user.role,
+    email: user.email,
+    username: user.username,
+    name: user.name,
+  });
+
+  await prisma.refresh_tokens.create({
+    data: {
+      id: randomUUID(),
+      userId: user.id,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: getRefreshTokenExpirationDate(),
+    },
+  });
+
   return {
     accessToken,
+    refreshToken,
     user: sanitizeUser(user),
+  };
+};
+
+export const refreshAccessToken = async (input: RefreshTokenInput) => {
+  const decoded = verifyRefreshToken(input.refreshToken);
+  const tokenHash = hashToken(input.refreshToken);
+
+  const tokenRecord = await prisma.refresh_tokens.findFirst({
+    where: {
+      tokenHash,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  if (!tokenRecord || tokenRecord.user.id !== decoded.id) {
+    throw new AppError(401, 'Refresh token is invalid or expired');
+  }
+
+  const accessToken = generateAccessToken({
+    id: tokenRecord.user.id,
+    role: tokenRecord.user.role,
+    email: tokenRecord.user.email,
+    username: tokenRecord.user.username,
+    name: tokenRecord.user.name,
+  });
+
+  return {
+    accessToken,
+  };
+};
+
+export const logoutUser = async (input: LogoutInput) => {
+  const tokenHash = hashToken(input.refreshToken);
+
+  await prisma.refresh_tokens.deleteMany({
+    where: {
+      tokenHash,
+    },
+  });
+
+  return {
+    message: 'Logout success',
   };
 };
 
@@ -278,6 +356,27 @@ export const updateUserProfile = async (userId: string, input: UpdateProfileInpu
       name: input.name ?? undefined,
       username: input.username ?? undefined,
       bio: input.bio === undefined ? undefined : input.bio,
+    },
+  });
+
+  return sanitizeUser(updatedUser);
+};
+
+export const updateUserProfileImage = async (userId: string, profileImageFile: Express.Multer.File) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+
+  const uploadResult = await uploadProfileImageToCloudinary(profileImageFile.buffer, user.id, user.username);
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      profileImageUrl: uploadResult.secureUrl,
     },
   });
 

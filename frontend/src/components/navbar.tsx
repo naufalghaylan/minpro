@@ -1,143 +1,124 @@
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "../store/auth";
+import { Menu, X } from "lucide-react";
+import api from "../api";
+
+const avatarLabel = (name?: string | null) => {
+  if (!name) {
+    return 'U';
+  }
+
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+};
 
 export default function Header() {
-  const [open, setOpen] = useState(false); // dropdown profile
-  const [mobileMenu, setMobileMenu] = useState(false); // 🔥 mobile menu
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
-  const handleLogout = () => {
+  // Close mobile menu when clicking on a link
+  const handleMobileMenuClose = () => {
+    setMobileMenuOpen(false);
+  };
+
+  // Close mobile menu when screen size changes to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [mobileMenuOpen]);
+
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+
+    if (refreshToken) {
+      try {
+        await api.post('/auth/logout', { refreshToken });
+      } catch {
+        // tetap lanjut bersihkan state lokal
+      }
+    }
+
     logout();
-    setOpen(false);
-    setMobileMenu(false);
+    setMobileMenuOpen(false);
     navigate("/", { replace: true });
   };
 
   return (
-    <header className="w-full bg-white shadow-md px-4 md:px-6 py-4 flex justify-between items-center">
+    <>
+      {/* DESKTOP & MOBILE NAVBAR */}
+      <header className="sticky top-0 w-full bg-white shadow-md px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center gap-4 z-40">
+        <Link to="/" className="logo-3d text-xl sm:text-2xl text-blue-800 font-bold tracking-widest shrink-0">
+          ANIMEKU.ID
+        </Link>
 
-      {/* LOGO */}
-      <Link to="/" className="text-xl md:text-2xl text-blue-800 font-bold tracking-widest">
-        ANIMEKU.ID
-      </Link>
+        <div className="hidden lg:flex items-center gap-6 ml-auto">
+          <nav className="flex items-center gap-6 text-sm font-medium">
+            <Link to="/" className="hover:text-blue-600 transition">
+              HOME
+            </Link>
 
-      {/* 🔥 HAMBURGER (MOBILE ONLY) */}
-      <button
-        className="md:hidden text-2xl"
-        onClick={() => setMobileMenu(!mobileMenu)}
-      >
-        ☰
-      </button>
+            <Link to="/events" className="hover:text-blue-600 transition">
+              EVENTS
+            </Link>
 
-      {/* 🔥 MENU DESKTOP */}
-      <nav className="hidden md:flex items-center gap-6 text-sm font-medium relative">
-        
-        <Link to="/" className="hover:text-blue-600">HOME</Link>
-        <Link to="/events" className="hover:text-blue-600">EVENTS</Link>
+            {user?.role === "EVENT_ORGANIZER" && (
+              <>
+                <Link to="/create-event" className="hover:text-blue-600 transition">
+                  BUAT EVENT
+                </Link>
 
-        {user?.role === "CUSTOMER" && (
-          <>
-            <Link to="/checkout">TRANSAKSI</Link>
-            <Link to="/myticket">MY TICKET</Link>
-          </>
-        )}
+                <Link to="/organizer/dashboard" className="hover:text-blue-600 transition">
+                  DASHBOARD EO
+                </Link>
 
-        {user?.role === "EVENT_ORGANIZER" && (
-          <>
-            <Link to="/createevent">BUAT EVENT</Link>
-            <Link to="/verify">VERIFIKASI</Link>
-            <Link to="/vouchers">VOUCHER</Link>
-          </>
-        )}
-
-        {!user && (
-          <Link
-            to="/login"
-            className="bg-blue-600 text-white px-4 py-1 rounded"
-          >
-            LOGIN
-          </Link>
-        )}
-
-        {/* PROFILE DROPDOWN */}
-        {user && (
-          <div className="relative">
-            <button
-              onClick={() => setOpen(!open)}
-              className="bg-gray-200 px-3 py-1 rounded"
-            >
-              ☰
-            </button>
-
-            {open && (
-              <div className="absolute right-0 mt-3 w-64 bg-white border rounded shadow-lg z-50">
-                <div className="p-4 border-b">
-                  <p className="font-semibold">{user.name}</p>
-                  <p className="text-sm text-gray-500">{user.email}</p>
-                </div>
-
-                <ul className="p-2">
-                  <li
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
-                    onClick={() => {
-                      setOpen(false);
-                      navigate("/profile");
-                    }}
-                  >
-                    Profile
-                  </li>
-
-                  {user.role === "EVENT_ORGANIZER" && (
-                    <li className="p-2 hover:bg-gray-100">
-                      <Link to="/dashboard-eo">Dashboard EO</Link>
-                    </li>
-                  )}
-
-                  <li>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full text-left px-2 py-2 hover:bg-gray-100 text-red-500"
-                    >
-                      Logout
-                    </button>
-                  </li>
-                </ul>
-              </div>
+                <Link to="/vouchers" className="hover:text-blue-600 transition">
+                  VOUCHER
+                </Link>
+              </>
             )}
-          </div>
-        )}
-      </nav>
 
-      {/* 🔥 MOBILE MENU */}
-      {mobileMenu && (
-        <div className="absolute top-[70px] left-0 w-full bg-white shadow-md p-4 flex flex-col gap-4 md:hidden z-50">
-
-          <Link to="/" onClick={() => setMobileMenu(false)}>HOME</Link>
-          <Link to="/events" onClick={() => setMobileMenu(false)}>EVENTS</Link>
-
-          {user?.role === "CUSTOMER" && (
-            <>
-              <Link to="/checkout" onClick={() => setMobileMenu(false)}>TRANSAKSI</Link>
-              <Link to="/myticket" onClick={() => setMobileMenu(false)}>MY TICKET</Link>
-            </>
-          )}
-
-          {user?.role === "EVENT_ORGANIZER" && (
-            <>
-              <Link to="/createevent" onClick={() => setMobileMenu(false)}>BUAT EVENT</Link>
-              <Link to="/verify" onClick={() => setMobileMenu(false)}>VERIFIKASI</Link>
-              <Link to="/vouchers" onClick={() => setMobileMenu(false)}>VOUCHER</Link>
-            </>
-          )}
+            {user?.role === "CUSTOMER" && (
+              <>
+                <Link to="/checkout" className="hover:text-blue-600 transition">
+                  TRANSAKSI
+                </Link>
+                <Link to="/myticket" className="hover:text-blue-600 transition">
+                  MY TICKET
+                </Link>
+              </>
+            )}
+          </nav>
 
           {!user && (
             <Link
               to="/login"
-              onClick={() => setMobileMenu(false)}
-              className="bg-blue-600 text-white px-4 py-2 rounded text-center"
+              className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
             >
               LOGIN
             </Link>
@@ -145,31 +126,180 @@ export default function Header() {
 
           {user && (
             <>
-              <div className="border-t pt-2">
-                <p className="font-semibold">{user.name}</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setMobileMenu(false);
-                  navigate("/profile");
-                }}
-                className="text-left"
+              <Link
+                to="/profile"
+                className="inline-flex items-center text-sm font-medium text-slate-700 transition hover:text-blue-600"
               >
-                Profile
-              </button>
-
+                PROFILE
+              </Link>
               <button
                 onClick={handleLogout}
-                className="text-left text-red-500"
+                className="inline-flex items-center text-sm font-medium text-red-500 transition hover:text-red-600"
               >
-                Logout
+                LOGOUT
               </button>
             </>
           )}
         </div>
-      )}
-    </header>
+
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="ml-auto lg:ml-0 lg:hidden p-2 rounded hover:bg-gray-100 transition"
+          title="Buka menu"
+          aria-label="Buka menu"
+        >
+          <Menu size={20} />
+        </button>
+      </header>
+
+      <div
+        className={`fixed top-0 right-0 h-screen w-72 max-w-[80vw] bg-white shadow-lg transform transition-transform duration-300 ease-in-out z-40 lg:hidden overflow-y-auto ${
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+          <h2 className="font-bold text-slate-900">MENU</h2>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="p-2 rounded hover:bg-gray-100 transition"
+            title="Tutup menu"
+            aria-label="Tutup menu"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <nav className="flex flex-col p-4 space-y-2">
+          {user && (
+            <div className="pb-4 border-b">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-12 w-12 rounded-full bg-linear-to-br from-slate-100 via-blue-50 to-amber-100 overflow-hidden shrink-0">
+                  {user.profileImageUrl ? (
+                    <img
+                      src={user.profileImageUrl}
+                      alt={user.name || 'User'}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center font-semibold text-sm text-slate-500">
+                      {avatarLabel(user.name)}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold truncate text-sm">
+                    {user.name || "User"}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {user.email || "email@gmail.com"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Link
+            to="/"
+            onClick={handleMobileMenuClose}
+            className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+          >
+            HOME
+          </Link>
+
+          <Link
+            to="/events"
+            onClick={handleMobileMenuClose}
+            className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+          >
+            EVENTS
+          </Link>
+
+          {user?.role === "EVENT_ORGANIZER" && (
+            <>
+              <Link
+                to="/create-event"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                BUAT EVENT
+              </Link>
+
+              <Link
+                to="/organizer/dashboard"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                DASHBOARD EO
+              </Link>
+
+              <Link
+                to="/vouchers"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                VOUCHER
+              </Link>
+
+              <Link
+                to="/organizer/dashboard"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                DASHBOARD EO
+              </Link>
+            </>
+          )}
+
+          {user?.role === "CUSTOMER" && (
+            <>
+              <Link
+                to="/checkout"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                TRANSAKSI
+              </Link>
+
+              <Link
+                to="/myticket"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                MY TICKET
+              </Link>
+            </>
+          )}
+
+          {user && (
+            <>
+              <Link
+                to="/profile"
+                onClick={handleMobileMenuClose}
+                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
+              >
+                PROFILE
+              </Link>
+
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-3 text-red-500 hover:bg-red-50 rounded transition font-medium mt-2 border-t"
+              >
+                LOGOUT
+              </button>
+            </>
+          )}
+
+          {!user && (
+            <Link
+              to="/login"
+              onClick={handleMobileMenuClose}
+              className="px-4 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition font-medium text-center"
+            >
+              LOGIN
+            </Link>
+          )}
+        </nav>
+      </div>
+    </>
   );
 }

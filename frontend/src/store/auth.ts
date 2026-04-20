@@ -7,6 +7,7 @@ type User = {
   username?: string;
   email: string;
   bio?: string | null;
+  profileImageUrl?: string | null;
   referralCode?: string;
   role: "CUSTOMER" | "EVENT_ORGANIZER";
 };
@@ -16,6 +17,7 @@ type AuthState = {
   token: string | null;
   hydrated: boolean;
   setAuth: (user: User, token: string) => void;
+  setAccessToken: (token: string) => void;
   setHydrated: (hydrated: boolean) => void;
   logout: () => void;
 };
@@ -31,11 +33,17 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token });
       },
 
+      setAccessToken: (token) => {
+        set({ token });
+      },
+
       setHydrated: (hydrated) => {
         set({ hydrated });
       },
 
       logout: () => {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
         set({ user: null, token: null });
       },
     }),

@@ -25,6 +25,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+export const refreshTokenSchema = z.object({
+  refreshToken: z.string().trim().min(1, 'Refresh token is required'),
+});
+
+export const logoutSchema = z.object({
+  refreshToken: z.string().trim().min(1, 'Refresh token is required'),
+});
+
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(255, 'Name is too long').optional(),
   username: z.string().trim().min(3, 'Username must be at least 3 characters').max(100, 'Username is too long').optional(),
@@ -47,6 +55,8 @@ export const resetPasswordSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

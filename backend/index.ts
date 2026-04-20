@@ -4,11 +4,13 @@ import cors from 'cors';
 import multer from 'multer';
 import cron from 'node-cron';
 import authRoutes from './src/routes/authRoutes';
+import organizerDashboardRoutes from './src/routes/organizerDashboardRoutes';
 import { AppError } from './src/errors/app.error';
 import { prisma } from './src/configs/prisma';
 import { authMiddleware } from './src/middlewares/authMiddleware';
 import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
 import { AuthRequest } from './src/types/auth';
+import { decideOrganizerTransaction } from './src/services/organizerDashboardService';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
@@ -335,6 +337,11 @@ app.get(
       const data = await prisma.transaction.findMany({
         where: {
           status: "PAID", // 🔥 hanya yang sudah upload bukti
+          order: {
+            event: {
+              eventOrganizerId: req.user.id,
+            },
+          },
         },
         include: {
           order: {
@@ -368,24 +375,7 @@ app.post(
         ? req.params.id[0]
         : req.params.id;
 
-      const trx = await prisma.transaction.findUnique({
-        where: { id },
-      });
-
-      if (!trx) {
-        return res.status(404).json({ message: "Not found" });
-      }
-
-      if (trx.status !== "PAID") {
-        return res.status(400).json({
-          message: "Transaksi belum dibayar",
-        });
-      }
-
-      const updated = await prisma.transaction.update({
-        where: { id },
-        data: { status: "DONE" },
-      });
+      const updated = await decideOrganizerTransaction(req.user.id, id, 'accept');
 
       res.json(updated);
     } catch (error: any) {
@@ -406,37 +396,8 @@ app.post(
         ? req.params.id[0]
         : req.params.id;
 
-      const trx = await prisma.transaction.findUnique({
-        where: { id },
-        include: { order: true }, // 🔥 WAJIB
-      });
-
-      if (!trx) {
-        return res.status(404).json({ message: "Not found" });
-      }
-
-      if (trx.status !== "PAID") {
-        return res.status(400).json({
-          message: "Transaksi belum dibayar",
-        });
-      }
-
-      // 🔥 BALIKIN SEAT
-      if (trx.order) {
-        await prisma.events.update({
-          where: { id: trx.order.eventId },
-          data: {
-            availableSeats: {
-              increment: trx.order.quantity,
-            },
-          },
-        });
-      }
-
-      const updated = await prisma.transaction.update({
-        where: { id },
-        data: { status: "REJECTED" },
-      });
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      const updated = await decideOrganizerTransaction(req.user.id, id, 'reject', { reason });
 
       res.json(updated);
     } catch (error: any) {
@@ -626,7 +587,7 @@ app.delete("/vouchers/:id", authMiddleware, async (req: AuthRequest, res) => {
 app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
-    const { eventId, quantity, voucherCode } = req.body; // 🔥 tambah voucherCode
+    const { eventId, quantity, voucherCode, couponCode, walletAmount } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -635,6 +596,12 @@ app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
     const qty = Number(quantity);
     if (!qty || qty < 1) {
       return res.status(400).json({ message: "Quantity tidak valid" });
+    }
+
+    const requestedWalletAmount = Number(walletAmount ?? 0);
+
+    if (Number.isNaN(requestedWalletAmount) || requestedWalletAmount < 0) {
+      return res.status(400).json({ message: "walletAmount tidak valid" });
     }
 
     const existing = await prisma.transaction.findFirst({
@@ -679,6 +646,10 @@ if (event.availableSeats < qty) {
       // 🔥 APPLY VOUCHER
       // ======================
       let voucherUsed: string | null = null;
+      let voucherDiscount = 0;
+      let couponUsed: string | null = null;
+      let couponDiscount = 0;
+      let walletUsed = 0;
 
       if (voucherCode) {
         const voucher = await tx.vouchers.findFirst({
@@ -700,10 +671,12 @@ if (event.availableSeats < qty) {
 
         // 🔥 apply voucher
         if (voucher.discountType === "PERCENT") {
-          finalPrice -= (finalPrice * voucher.discountValue) / 100;
+          voucherDiscount = (finalPrice * voucher.discountValue) / 100;
         } else {
-          finalPrice -= voucher.discountValue;
+          voucherDiscount = voucher.discountValue;
         }
+
+        finalPrice -= voucherDiscount;
 
         voucherUsed = voucher.code;
 
@@ -716,10 +689,77 @@ if (event.availableSeats < qty) {
         });
       }
 
+      if (couponCode) {
+        const coupon = await tx.coupons.findFirst({
+          where: {
+            userId,
+            code: String(couponCode),
+            usedAt: null,
+            expiresAt: {
+              gt: now,
+            },
+          },
+        });
+
+        if (!coupon) {
+          throw new Error("Coupon tidak valid atau sudah tidak aktif");
+        }
+
+        // NOTE: amount <= 100 dianggap persen untuk kompatibilitas reward referral saat ini.
+        if (coupon.amount <= 100) {
+          couponDiscount = (finalPrice * coupon.amount) / 100;
+        } else {
+          couponDiscount = coupon.amount;
+        }
+
+        finalPrice -= couponDiscount;
+        couponUsed = coupon.code;
+
+        await tx.coupons.update({
+          where: {
+            id: coupon.id,
+          },
+          data: {
+            usedAt: now,
+          },
+        });
+      }
+
       // 🔥 biar ga minus
       if (finalPrice < 0) finalPrice = 0;
 
-      const totalAmount = finalPrice * qty;
+      let totalAmount = finalPrice * qty;
+
+      if (requestedWalletAmount > 0) {
+        const wallet = await tx.wallets.findFirst({
+          where: {
+            userId,
+            balance: {
+              gt: 0,
+            },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          },
+        });
+
+        if (!wallet) {
+          throw new Error("Wallet tidak tersedia atau sudah expired");
+        }
+
+        walletUsed = Math.min(requestedWalletAmount, wallet.balance, totalAmount);
+        totalAmount -= walletUsed;
+
+        await tx.wallets.update({
+          where: {
+            id: wallet.id,
+          },
+          data: {
+            balance: {
+              decrement: walletUsed,
+            },
+            usedAt: now,
+          },
+        });
+      }
 
       const expiredAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
@@ -727,9 +767,14 @@ if (event.availableSeats < qty) {
         data: {
           userId,
           totalAmount,
+          walletAmountUsed: Math.round(walletUsed),
+          couponCodeUsed: couponUsed,
+          couponDiscountUsed: Math.round(couponDiscount * qty),
+          voucherCodeUsed: voucherUsed,
+          voucherDiscountUsed: Math.round(voucherDiscount * qty),
           status: "PENDING",
           expiredAt,
-        },
+        } as any,
       });
 
       await tx.orders.create({
@@ -758,6 +803,8 @@ if (event.availableSeats < qty) {
       return {
         trx,
         voucher: voucherUsed,
+        coupon: couponUsed,
+        walletUsed,
         finalPrice,
         totalAmount,
       };
@@ -769,6 +816,8 @@ if (event.availableSeats < qty) {
       finalPrice: result.finalPrice,
       totalAmount: result.totalAmount,
       voucher: result.voucher, // 🔥 kirim ke frontend
+      coupon: result.coupon,
+      walletUsed: result.walletUsed,
     });
 
   } catch (error: any) {
@@ -1063,6 +1112,7 @@ app.get("/reviews/:eventId", async (req, res) => {
 // AUTH
 // ==================
 app.use('/auth', authRoutes);
+app.use('/organizer/dashboard', organizerDashboardRoutes);
 startRewardExpirationCron();
 
 // ==================
