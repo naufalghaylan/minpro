@@ -5,8 +5,10 @@ import {
   getCurrentUserById,
   getUserWalletAndCoupons,
   loginUser,
+  logoutUser,
   registerUser,
   requestPasswordReset,
+  refreshAccessToken,
   resetUserPassword,
   updateUserProfile,
   updateUserProfileImage,
@@ -26,6 +28,7 @@ export const register = async (req: Request, res: Response) => {
     const user = await registerUser(req.body);
     return res.status(201).json({ message: 'Register success', user });
   } catch (error) {
+    console.error('Register error:', error);
     return handleError(res, error);
   }
 };
@@ -36,8 +39,30 @@ export const login = async (req: Request, res: Response) => {
     return res.status(200).json({
       message: 'Login success',
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
       user: result.user,
     });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    const result = await refreshAccessToken(req.body);
+    return res.status(200).json({
+      message: 'Token refreshed successfully',
+      accessToken: result.accessToken,
+    });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    const result = await logoutUser(req.body);
+    return res.status(200).json(result);
   } catch (error) {
     return handleError(res, error);
   }

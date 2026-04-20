@@ -1,0 +1,510 @@
+{
+  "info": {
+    "_postman_id": "6a2b7a2a-fc73-4df9-8b5f-6f9d10c5a0df",
+    "name": "Organizer Dashboard API - Minpro Backend",
+    "description": "Postman collection for organizer dashboard endpoints and related transaction flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "eventId",
+      "value": ""
+    },
+    {
+      "key": "transactionId",
+      "value": ""
+    },
+    {
+      "key": "status",
+      "value": "PAID"
+    },
+    {
+      "key": "page",
+      "value": "1"
+    },
+    {
+      "key": "limit",
+      "value": "10"
+    },
+    {
+      "key": "year",
+      "value": "2026"
+    },
+    {
+      "key": "month",
+      "value": "4"
+    }
+  ],
+  "item": [
+    {
+      "name": "Organizer Dashboard",
+      "item": [
+        {
+          "name": "Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/overview",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "overview"
+              ]
+            },
+            "description": "Get organizer dashboard summary metrics."
+          }
+        },
+        {
+          "name": "List Organizer Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/events",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "events"
+              ]
+            },
+            "description": "List all events owned by the logged in organizer."
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Anime Fest 2026 Updated\",\n  \"price\": 275000,\n  \"totalSeats\": 650,\n  \"city\": \"Jakarta\",\n  \"discountType\": \"PERCENT\",\n  \"discountValue\": 10,\n  \"discountStart\": \"2026-05-01T00:00:00.000Z\",\n  \"discountEnd\": \"2026-05-10T23:59:59.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/events/{{eventId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "events",
+                "{{eventId}}"
+              ]
+            },
+            "description": "Update event data owned by organizer."
+          }
+        },
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/transactions?status={{status}}&eventId={{eventId}}&page={{page}}&limit={{limit}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "{{status}}"
+                },
+                {
+                  "key": "eventId",
+                  "value": "{{eventId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "{{page}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "{{limit}}"
+                }
+              ]
+            },
+            "description": "List organizer transactions with filter and pagination."
+          }
+        },
+        {
+          "name": "Accept Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Pembayaran valid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/transactions/{{transactionId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "transactions",
+                "{{transactionId}}",
+                "accept"
+              ]
+            },
+            "description": "Accept payment proof (PAID to DONE)."
+          }
+        },
+        {
+          "name": "Reject Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Bukti pembayaran tidak valid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/transactions/{{transactionId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "transactions",
+                "{{transactionId}}",
+                "reject"
+              ]
+            },
+            "description": "Reject payment proof and trigger business rollback (seat, wallet, coupon, voucher)."
+          }
+        },
+        {
+          "name": "Statistics - Year",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/statistics?groupBy=year",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "groupBy",
+                  "value": "year"
+                }
+              ]
+            },
+            "description": "Get statistics aggregated by year."
+          }
+        },
+        {
+          "name": "Statistics - Month",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/statistics?groupBy=month&year={{year}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "groupBy",
+                  "value": "month"
+                },
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                }
+              ]
+            },
+            "description": "Get statistics aggregated by month for selected year."
+          }
+        },
+        {
+          "name": "Statistics - Day",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/statistics?groupBy=day&year={{year}}&month={{month}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "statistics"
+              ],
+              "query": [
+                {
+                  "key": "groupBy",
+                  "value": "day"
+                },
+                {
+                  "key": "year",
+                  "value": "{{year}}"
+                },
+                {
+                  "key": "month",
+                  "value": "{{month}}"
+                }
+              ]
+            },
+            "description": "Get statistics aggregated by day for selected month and year."
+          }
+        },
+        {
+          "name": "Attendee List by Event",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/organizer/dashboard/events/{{eventId}}/attendees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "organizer",
+                "dashboard",
+                "events",
+                "{{eventId}}",
+                "attendees"
+              ]
+            },
+            "description": "Get attendee list for a specific organizer event."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Related Existing Endpoints",
+      "item": [
+        {
+          "name": "Checkout (with coupon and wallet)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{eventId}}\",\n  \"quantity\": 2,\n  \"voucherCode\": \"VOUCHER2026\",\n  \"couponCode\": \"REFABCD1234\",\n  \"walletAmount\": 10000\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/checkout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "checkout"
+              ]
+            },
+            "description": "Checkout endpoint used to store reward usage metadata for possible rollback on rejection."
+          }
+        },
+        {
+          "name": "Admin - List Paid Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "transactions"
+              ]
+            },
+            "description": "Legacy admin listing filtered to current organizer events."
+          }
+        },
+        {
+          "name": "Admin - Approve Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions/{{transactionId}}/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "transactions",
+                "{{transactionId}}",
+                "approve"
+              ]
+            },
+            "description": "Legacy admin endpoint using same decision service."
+          }
+        },
+        {
+          "name": "Admin - Reject Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Bukti pembayaran tidak valid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/transactions/{{transactionId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "transactions",
+                "{{transactionId}}",
+                "reject"
+              ]
+            },
+            "description": "Legacy admin endpoint using same decision service and rollback logic."
+          }
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  }
+}

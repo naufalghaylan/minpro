@@ -47,3 +47,35 @@ export const sendResetPasswordEmail = async (params: {
     html,
   });
 };
+
+export const sendTransactionStatusEmail = async (params: {
+  emailTo: string;
+  name: string;
+  eventName: string;
+  transactionId: string;
+  totalAmount: number;
+  status: 'ACCEPTED' | 'REJECTED';
+  reason?: string;
+}) => {
+  const html = renderTemplate('src/templates/emails/transaction-status.hbs', {
+    name: params.name,
+    eventName: params.eventName,
+    transactionId: params.transactionId,
+    totalAmount: params.totalAmount.toLocaleString('id-ID'),
+    status: params.status,
+    reason: params.reason,
+    supportEmail: mailFrom,
+  });
+
+  const subject =
+    params.status === 'ACCEPTED'
+      ? 'Pembayaran kamu sudah diterima'
+      : 'Pembayaran kamu ditolak';
+
+  await transporter.sendMail({
+    from: mailFrom,
+    to: params.emailTo,
+    subject,
+    html,
+  });
+};

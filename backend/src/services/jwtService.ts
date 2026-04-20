@@ -19,11 +19,28 @@ export const generateAccessToken = (
   return jwt.sign(payload, getJwtSecret(), { expiresIn });
 };
 
+export const generateRefreshToken = (
+  payload: JwtAccessPayload,
+  expiresIn: SignOptions['expiresIn'] = '7d',
+) => {
+  return jwt.sign(payload, getJwtSecret(), { expiresIn });
+};
+
 export const verifyAccessToken = (token: string): JwtAccessPayload => {
   const decoded = jwt.verify(token, getJwtSecret());
 
   if (!decoded || typeof decoded === 'string') {
     throw new Error('Invalid access token payload');
+  }
+
+  return decoded as JwtAccessPayload;
+};
+
+export const verifyRefreshToken = (token: string): JwtAccessPayload => {
+  const decoded = jwt.verify(token, getJwtSecret());
+
+  if (!decoded || typeof decoded === 'string') {
+    throw new Error('Invalid refresh token payload');
   }
 
   return decoded as JwtAccessPayload;
