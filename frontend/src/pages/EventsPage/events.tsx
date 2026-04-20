@@ -124,8 +124,7 @@ console.log(events);
         {!loading && events.length === 0 && (
           <p className="text-gray-500">Event tidak ditemukan...</p>
         )}
-
-        {/* GRID */}
+{/* GRID */}
 <div className="grid md:grid-cols-3 gap-8">
   {events.map((item) => {
     const image = item.event_images?.[0]?.url
@@ -140,10 +139,17 @@ console.log(events);
       ? Math.round(((item.price - finalPrice) / item.price) * 100)
       : 0;
 
+    // 🔥 STATUS LOGIC (dari backend)
+    const isEnded = item.status === "ENDED";
+    const isOngoing = item.status === "ONGOING";
+    const isUpcoming = item.status === "UPCOMING";
+    const isSoldOut = item.availableSeats === 0;
+
     return (
       <div
         key={item.id}
         onClick={() => {
+          if (isEnded) return; // ❌ ga bisa klik kalau ended
           setLoadingClick(item.id);
           setTimeout(() => {
             navigate(`/order/${item.id}`);
@@ -153,26 +159,38 @@ console.log(events);
       >
         {/* IMAGE */}
         <div className="relative">
-          <img
-            src={image}
-            className="h-56 w-full object-cover"
-          />
+          <img src={image} className="h-56 w-full object-cover" />
 
-          {/* 🔥 % DISCOUNT BADGE */}
+          {/* 🔥 STATUS BADGE */}
+          <span
+            className={`absolute top-3 right-3 text-xs px-3 py-1 rounded-full text-white ${
+              isEnded
+                ? "bg-gray-500"
+                : isOngoing
+                ? "bg-green-500"
+                : "bg-blue-500"
+            }`}
+          >
+            {isEnded && "ENDED"}
+            {isOngoing && "ONGOING"}
+            {isUpcoming && "UPCOMING"}
+          </span>
+
+          {/* 🔥 % DISCOUNT */}
           {isDiscount && (
             <span className="absolute top-3 left-3 bg-red-500 text-white text-xs px-3 py-1 rounded-full shadow">
               {discountPercent}% OFF
             </span>
           )}
 
-          {/* 🔥 COUNTDOWN FLOATING */}
+          {/* 🔥 COUNTDOWN */}
           {isDiscount && countdown && (
             <span className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
               ⏰ {countdown}
             </span>
           )}
 
-          {/* LOADING CLICK */}
+          {/* LOADING */}
           {loadingClick === item.id && (
             <div className="absolute inset-0 bg-black/50 flex justify-center items-center">
               <div className="animate-spin h-8 w-8 border-b-2 border-white rounded-full"></div>
@@ -186,16 +204,28 @@ console.log(events);
             {item.name}
           </h3>
 
-          {/* 🔥 CITY */}
-        <p className="text-gray-400 text-sm mt-1">
-        📍 {item.city || "Unknown Location"}
-        </p>
+          <p className="text-gray-400 text-sm mt-1">
+            📍 {item.city || "Unknown Location"}
+          </p>
 
-        <p className="text-gray-500 text-sm">
-        Quota: {item.availableSeats}/{item.totalSeats}
-        </p>
+          <p className="text-gray-500 text-sm">
+            Quota: {item.availableSeats}/{item.totalSeats}
+          </p>
 
-          {/* 🔥 LABEL URGENT */}
+          {/* 🔥 STATUS TEXT */}
+          {isEnded && (
+            <p className="text-gray-500 text-xs mt-1">
+              ❌ Event sudah selesai
+            </p>
+          )}
+
+          {isOngoing && (
+            <p className="text-green-500 text-xs mt-1 animate-pulse">
+              🔥 Sedang berlangsung!
+            </p>
+          )}
+
+          {/* 🔥 PROMO */}
           {isDiscount && (
             <p className="text-red-500 text-xs mt-1 animate-pulse">
               🔥 Promo terbatas!
@@ -215,14 +245,18 @@ console.log(events);
             </span>
           </div>
 
+          {/* 🔥 BUTTON FIX */}
           <button
+            disabled={isEnded || isSoldOut}
             className={`mt-5 w-full py-2 rounded-xl text-white font-semibold transition ${
-              item.availableSeats === 0
-                ? "bg-gray-400"
+              isEnded || isSoldOut
+                ? "bg-gray-400 cursor-not-allowed"
                 : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90"
             }`}
           >
-            {item.availableSeats === 0
+            {isEnded
+              ? "Event Selesai"
+              : isSoldOut
               ? "Sold Out"
               : "Beli Sekarang"}
           </button>

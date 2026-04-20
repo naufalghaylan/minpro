@@ -12,7 +12,32 @@ import { AuthRequest } from './src/types/auth';
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
+function getEventStatus(event: any) {
+  const now = new Date();
 
+  if (!event.eventDate || !event.endTime) return "UNKNOWN";
+
+  const end = new Date(event.eventDate);
+  const [h, m] = event.endTime.split(":");
+
+  end.setHours(Number(h));
+  end.setMinutes(Number(m));
+  end.setSeconds(0);
+
+  if (now > end) return "ENDED";
+
+  const start = new Date(event.eventDate);
+
+  if (event.startTime) {
+    const [sh, sm] = event.startTime.split(":");
+    start.setHours(Number(sh));
+    start.setMinutes(Number(sm));
+  }
+
+  if (now >= start && now <= end) return "ONGOING";
+
+  return "UPCOMING";
+}
 function calculateFinalPrice(event: any) {
   let finalPrice = Number(event.price);
 
@@ -84,11 +109,11 @@ app.get('/', (_req, res) => {
 // ==================
 // EVENTS
 // ==================
-app.get("/events", upload.array("images"), async (req, res) => {
+app.get("/events", async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, status } = req.query;
 
-const events = await prisma.events.findMany({
+    const events = await prisma.events.findMany({
       where: search
         ? {
             OR: [
@@ -111,12 +136,22 @@ const events = await prisma.events.findMany({
         event_images: true,
       },
     });
-    const result = events.map((event) => ({
+
+    let result = events.map((event) => ({
       ...event,
       finalPrice: calculateFinalPrice(event),
+      status: getEventStatus(event), // 🔥 tambahan penting
     }));
 
+    // 🔥 filter by status
+    if (status) {
+      result = result.filter(
+        (e) => e.status === String(status).toUpperCase()
+      );
+    }
+
     res.json(result);
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error ambil event" });
@@ -618,11 +653,21 @@ app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
     const result = await prisma.$transaction(async (tx) => {
 
       const event = await tx.events.findUnique({
-        where: { id: eventId },
-      });
+  where: { id: eventId },
+});
 
-      if (!event) throw new Error("Event tidak ditemukan");
-      if (event.availableSeats < qty) throw new Error("Seat tidak cukup");
+if (!event) throw new Error("Event tidak ditemukan");
+
+// 🔥 CEK STATUS EVENT
+const status = getEventStatus(event);
+
+if (status === "ENDED") {
+  throw new Error("Event sudah selesai, tidak bisa dibeli");
+}
+
+if (event.availableSeats < qty) {
+  throw new Error("Seat tidak cukup");
+}
 
       // 🔥 harga awal + event discount
       let finalPrice = calculateFinalPrice(event);
@@ -992,6 +1037,26 @@ app.get("/my-tickets", authMiddleware, async (req: AuthRequest, res) => {
 
   } catch (error: any) {
     res.status(400).json({ message: error.message });
+  }
+});
+app.get("/reviews/:eventId", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const reviews = await prisma.reviews.findMany({
+      where: { eventId },
+      include: {
+        user: true, // opsional (biar ada nama user)
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.json(reviews);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Gagal ambil review" });
   }
 });
 // ==================

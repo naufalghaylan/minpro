@@ -28,7 +28,7 @@ export interface Event {
 
   // 🔥 HASIL HITUNG BACKEND
   finalPrice?: number;
-
+  status?: "UPCOMING" | "ONGOING" | "ENDED";
   event_images: {
     url: string;
   }[];

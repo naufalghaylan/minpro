@@ -14,6 +14,9 @@ export default function OrderPage() {
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
 
+  // 🔥 REVIEW STATE
+  const [reviews, setReviews] = useState<any[]>([]);
+
   // 🔥 VOUCHER STATE
   const [voucherCode, setVoucherCode] = useState("");
   const [preview, setPreview] = useState<any>(null);
@@ -27,12 +30,26 @@ export default function OrderPage() {
   }, []);
 
   useEffect(() => {
-    const fetchEvent = async () => {
-      const res = await api.get(`/events/${eventId}`);
-      setEvent(res.data);
-    };
-    if (eventId) fetchEvent();
+    if (eventId) {
+      fetchEvent();
+      fetchReviews(); // 🔥 ambil review
+    }
   }, [eventId]);
+
+  const fetchEvent = async () => {
+    const res = await api.get(`/events/${eventId}`);
+    setEvent(res.data);
+  };
+
+  // 🔥 FETCH REVIEW
+  const fetchReviews = async () => {
+    try {
+      const res = await api.get(`/reviews/${eventId}`);
+      setReviews(res.data);
+    } catch (err) {
+      console.error("Review error:", err);
+    }
+  };
 
   const getImage = () => {
     const img =
@@ -83,7 +100,7 @@ export default function OrderPage() {
     return event.price;
   };
 
-  // 🔥 APPLY VOUCHER (PREVIEW)
+  // 🔥 APPLY VOUCHER
   const applyVoucher = async () => {
     if (!token) {
       alert("Login dulu!");
@@ -95,16 +112,8 @@ export default function OrderPage() {
 
       const res = await api.post(
         "/preview",
-        {
-          eventId,
-          quantity,
-          voucherCode,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { eventId, quantity, voucherCode },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setPreview(res.data);
@@ -122,11 +131,15 @@ export default function OrderPage() {
   const baseFinalPrice = Math.max(0, calculateFinalPrice());
   const isDiscount = baseFinalPrice < price;
 
-  // 🔥 PAKAI PREVIEW KALAU ADA
   const finalPrice = preview?.finalPrice ?? baseFinalPrice;
   const total = preview?.totalAmount ?? finalPrice * quantity;
 
   const countdown = getCountdown(event.discountEnd);
+
+  // 🔥 AVG RATING
+  const avgRating =
+    reviews.reduce((acc, r) => acc + r.rating, 0) /
+    (reviews.length || 1);
 
   const handleCheckout = async () => {
     if (!token) {
@@ -140,14 +153,8 @@ export default function OrderPage() {
 
       const res = await api.post(
         "/checkout",
-        {
-          eventId,
-          quantity,
-          voucherCode, // 🔥 kirim voucher
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { eventId, quantity, voucherCode },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       navigate(`/transactions/${res.data.transactionId}`);
@@ -189,6 +196,11 @@ export default function OrderPage() {
 
           <h1 className="text-2xl font-bold">{event.name}</h1>
 
+          {/* ⭐ RATING */}
+          <p className="text-yellow-500 text-sm mt-1">
+            ⭐ {avgRating.toFixed(1)} / 5 ({reviews.length} review)
+          </p>
+
           <p className="text-gray-500 mb-2">{event.description}</p>
 
           <div className="text-sm text-gray-600 mb-4 space-y-1">
@@ -197,7 +209,6 @@ export default function OrderPage() {
                 ? new Date(event.eventDate).toLocaleDateString("id-ID")
                 : "-"}
             </p>
-
             <p>⏰ {event.startTime} - {event.endTime}</p>
             <p>📍 {event.location}, {event.city}</p>
           </div>
@@ -220,45 +231,33 @@ export default function OrderPage() {
             <span className="font-medium">Jumlah</span>
 
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-8 h-8 rounded-full bg-gray-200"
-              >-</button>
-
+              <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-8 h-8 rounded-full bg-gray-200">-</button>
               <span className="text-lg font-semibold">{quantity}</span>
-
-              <button
-                onClick={() => setQuantity((q) => q + 1)}
-                className="w-8 h-8 rounded-full bg-gray-200"
-              >+</button>
+              <button onClick={() => setQuantity((q) => q + 1)} className="w-8 h-8 rounded-full bg-gray-200">+</button>
             </div>
           </div>
 
-          {/* 🔥 VOUCHER INPUT */}
-<div className="mb-4">
-  <div className="flex border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
+          {/* VOUCHER */}
+          <div className="mb-4">
+            <div className="flex border rounded-lg overflow-hidden">
+              <input
+                value={voucherCode}
+                onChange={(e) => setVoucherCode(e.target.value)}
+                placeholder="Masukkan kode voucher"
+                className="flex-1 px-3 py-2 outline-none"
+              />
+              <button
+                onClick={applyVoucher}
+                disabled={!voucherCode || loadingVoucher}
+                className="px-4 bg-blue-600 text-white text-sm font-semibold disabled:bg-gray-300"
+              >
+                {loadingVoucher ? "..." : "Apply →"}
+              </button>
+            </div>
+          </div>
 
-    <input
-      value={voucherCode}
-      onChange={(e) => setVoucherCode(e.target.value)}
-      placeholder="Masukkan kode voucher"
-      className="flex-1 px-3 py-2 outline-none"
-    />
-
-    <button
-      onClick={applyVoucher}
-      disabled={!voucherCode || loadingVoucher}
-      className="px-4 bg-blue-600 text-white text-sm font-semibold disabled:bg-gray-300"
-    >
-      {loadingVoucher ? "..." : "Apply →"}
-    </button>
-
-  </div>
-</div>
-
-          {/* 🔥 SUMMARY */}
+          {/* SUMMARY */}
           <div className="border-t pt-4 space-y-2 text-sm">
-
             <div className="flex justify-between">
               <span>Harga x {quantity}</span>
               <span>Rp {(price * quantity).toLocaleString()}</span>
@@ -267,27 +266,41 @@ export default function OrderPage() {
             {isDiscount && (
               <div className="flex justify-between text-red-500">
                 <span>Diskon Event</span>
-                <span>
-                  - Rp {((price - baseFinalPrice) * quantity).toLocaleString()}
-                </span>
+                <span>- Rp {((price - baseFinalPrice) * quantity).toLocaleString()}</span>
               </div>
             )}
 
             {preview?.voucher && (
               <div className="flex justify-between text-green-600">
                 <span>Voucher ({preview.voucher})</span>
-                <span>
-                  - Rp {preview.voucherDiscount.toLocaleString()}
-                </span>
+                <span>- Rp {preview.voucherDiscount.toLocaleString()}</span>
               </div>
             )}
 
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span className="text-blue-600">
-                Rp {total.toLocaleString()}
-              </span>
+              <span className="text-blue-600">Rp {total.toLocaleString()}</span>
             </div>
+          </div>
+
+          {/* 🔥 REVIEW LIST */}
+          <div className="mt-6 border-t pt-4">
+            <h2 className="font-semibold mb-3">Review Pengguna</h2>
+
+            {reviews.length === 0 ? (
+              <p className="text-gray-500 text-sm">Belum ada review</p>
+            ) : (
+              <div className="space-y-3 max-h-40 overflow-auto">
+                {reviews.map((r, i) => (
+                  <div key={i} className="border p-2 rounded text-sm">
+                    <p className="text-yellow-500">
+                      {"⭐".repeat(r.rating)}
+                    </p>
+                    <p>{r.comment}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* BUTTON */}
