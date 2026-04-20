@@ -89,7 +89,7 @@ export default function Header() {
 
             {user?.role === "EVENT_ORGANIZER" && (
               <>
-                <Link to="/create-event" className="hover:text-blue-600 transition">
+                <Link to="/createevent" className="hover:text-blue-600 transition">
                   BUAT EVENT
                 </Link>
 
@@ -217,7 +217,7 @@ export default function Header() {
           {user?.role === "EVENT_ORGANIZER" && (
             <>
               <Link
-                to="/create-event"
+                to="/createevent"
                 onClick={handleMobileMenuClose}
                 className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
               >
@@ -238,14 +238,6 @@ export default function Header() {
                 className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
               >
                 VOUCHER
-              </Link>
-
-              <Link
-                to="/organizer/dashboard"
-                onClick={handleMobileMenuClose}
-                className="px-4 py-3 text-gray-800 hover:bg-blue-50 rounded transition font-medium"
-              >
-                DASHBOARD EO
               </Link>
             </>
           )}
