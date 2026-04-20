@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Status Pembayaran</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.5;">
+    <h2>
+      Halo {{name}},
+    </h2>
+
+    <p>
+      Status pembayaran untuk event <strong>{{eventName}}</strong> sudah diperbarui.
+    </p>
+
+    <p>
+      <strong>Transaction ID:</strong> {{transactionId}}<br />
+      <strong>Total Pembayaran:</strong> Rp {{totalAmount}}<br />
+      <strong>Status:</strong> {{status}}
+    </p>
+
+    {{#if reason}}
+      <p>
+        <strong>Alasan:</strong> {{reason}}
+      </p>
+    {{/if}}
+
+    <p>
+      Jika kamu merasa ada kesalahan, silakan hubungi tim support di {{supportEmail}}.
+    </p>
+
+    <p>
+      Terima kasih.<br />
+      Event Platform
+    </p>
+  </body>
+</html>

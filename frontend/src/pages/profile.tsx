@@ -360,7 +360,7 @@ export default function ProfilePage() {
 
           <Link
             to="/"
-            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 flex-shrink-0"
+            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 shrink-0"
           >
             Kembali ke beranda
           </Link>
@@ -370,7 +370,7 @@ export default function ProfilePage() {
           <aside className="space-y-4 sm:space-y-6">
             <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="relative h-20 w-20 sm:h-24 sm:w-24 flex-shrink-0 overflow-hidden rounded-full bg-linear-to-br from-slate-100 via-blue-50 to-amber-100 p-1 shadow-inner">
+                <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-full bg-linear-to-br from-slate-100 via-blue-50 to-amber-100 p-1 shadow-inner">
                   {displayProfileImage ? (
                     <img
                       src={displayProfileImage}
@@ -395,7 +395,7 @@ export default function ProfilePage() {
                 {!user?.profileImageUrl && !isChangeProfilePictureMode ? (
                   <div className="space-y-3">
                     <div className="flex items-start gap-2 sm:gap-3">
-                      <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+                      <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0" />
                       <div className="min-w-0">
                         <p className="text-xs sm:text-sm font-semibold text-slate-800">Upload foto profil</p>
                         <p className="mt-1 text-xs sm:text-sm text-slate-600">
@@ -465,7 +465,7 @@ export default function ProfilePage() {
                     {isChangeProfilePictureMode && (
                       <>
                         <div className="flex items-start gap-2 sm:gap-3">
-                          <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-blue-500 flex-shrink-0" />
+                          <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs sm:text-sm font-semibold text-slate-800">Ganti foto profil</p>
                             <p className="mt-1 text-xs sm:text-sm text-slate-600">
@@ -754,7 +754,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="col-span-1">
                           <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Nominal</p>
-                          <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-900">{formatCurrency(coupon.amount)}</p>
+                          <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-900">{coupon.amount}%</p>
                         </div>
                         <div className="col-span-2 sm:col-span-1">
                           <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Kadaluarsa</p>

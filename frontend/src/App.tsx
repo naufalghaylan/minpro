@@ -10,11 +10,13 @@ import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
 import ProfilePage from "./pages/profile";
 import RequireAuth from "./components/RequireAuth";
+import RequireRole from "./components/RequireRole";
 import PaymentPage from "./pages/transaksi/TransaksiPage";
 import AdminTransactionPage from "./pages/AdminTransactionPage/AdminTransactionPage";
 import VoucherPage from "./pages/VoucherPage/VoucherPage";
 import MyTicketsPage from "./pages/mytickets/mytickets";
 import TicketDetailPage from "./pages/TicketDetailPage/TicketDetailPage";
+import OrganizerDashboardPage from "./pages/OrganizerDashboardPage/OrganizerDashboardPage";
 
 function App() {
   return (
@@ -30,6 +32,16 @@ function App() {
       <Route path="/createevent" element={<CreateEvent />} />
       <Route path="/transactions/:id" element={<PaymentPage />} />
       <Route path="/verify" element={<AdminTransactionPage />} />
+      <Route
+        path="/organizer/dashboard"
+        element={
+          <RequireAuth>
+            <RequireRole allow={["EVENT_ORGANIZER"]}>
+              <OrganizerDashboardPage />
+            </RequireRole>
+          </RequireAuth>
+        }
+      />
       <Route path="/vouchers" element={<VoucherPage />} />
       <Route path="/myticket" element={<MyTicketsPage />} />
       <Route path="/ticketdetail/:id" element={<TicketDetailPage />} />

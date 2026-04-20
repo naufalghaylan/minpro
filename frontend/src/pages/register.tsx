@@ -82,6 +82,16 @@ export default function RegisterPage() {
 
       <div className="w-full max-w-md z-10 px-4 py-10">
         <div className="bg-white rounded-xl shadow-xl p-8 flex flex-col items-center border border-gray-100">
+          <Link
+            to="/"
+            className="self-start mb-4 text-blue-600 hover:underline text-sm font-medium flex items-center gap-1"
+            aria-label="Kembali ke Home"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="inline-block align-middle mr-1">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Kembali ke Home
+          </Link>
           <h2 className="text-xl font-bold mb-2 text-gray-800 text-center tracking-tight">Buat Akun Baru</h2>
           {/* <p className="text-sm text-gray-500 text-center mb-6">
             Daftar sebagai customer atau organizer dengan tampilan yang sama seperti login.

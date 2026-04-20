@@ -38,6 +38,7 @@ export default function LoginPage() {
       const res = await api.post('/auth/login', data);
       setAuth(res.data.user, res.data.accessToken);
       localStorage.setItem('accessToken', res.data.accessToken);
+      localStorage.setItem('refreshToken', res.data.refreshToken);
       // opsional: localStorage.setItem('user', JSON.stringify(res.data.user));
       window.location.href = '/';
     } catch (err: unknown) {
