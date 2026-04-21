@@ -385,38 +385,44 @@ const fetchRatings = useCallback(async () => {
   try {
     setRatingsLoading(true);
 
-    // 🔥 ambil token dari zustand
     const token = useAuthStore.getState().token;
 
-    const res = await api.get("/ratings/organizer", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    let res: { data: RatingItem[] | { data: RatingItem[] } } | null = null;
+    const endpointCandidates = ['/api/ratings/organizer', '/ratings/organizer'];
 
-    console.log("RATINGS:", res.data);
+    for (const endpoint of endpointCandidates) {
+      try {
+        res = await api.get<RatingItem[] | { data: RatingItem[] }>(endpoint, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        break;
+      } catch (error) {
+        if (!isAxiosError(error) || error.response?.status !== 404) {
+          throw error;
+        }
+      }
+    }
+
+    if (!res) {
+      throw new Error('Ratings endpoint not found');
+    }
 
     const data = Array.isArray(res.data) ? res.data : res.data.data;
 
     setRatings(data);
 
-    // 🔥 average
     if (data.length > 0) {
-      const avg =
-        data.reduce((acc: number, item: any) => acc + item.rating, 0) /
-        data.length;
+      const avg = data.reduce((acc, item) => acc + item.rating, 0) / data.length;
 
       setAvgRating(Number(avg.toFixed(1)));
     } else {
       setAvgRating(0);
     }
 
-  } catch (err: any) {
-    console.error("Rating error:", err);
-
-    if (err.response?.status === 401) {
-      alert("Unauthorized (rating)");
-    }
+  } catch (error) {
+    setGlobalMessage({ type: 'error', text: getErrorMessage(error) });
   } finally {
     setRatingsLoading(false);
   }
@@ -440,7 +446,7 @@ const fetchRatings = useCallback(async () => {
   }, [fetchAttendees, selectedAttendeeEventId]);
   useEffect(() => {
   if (activeTab === "ratings") {
-    fetchRatings();
+    void fetchRatings();
   }
 }, [activeTab, fetchRatings]);
 
@@ -1236,7 +1242,7 @@ const fetchRatings = useCallback(async () => {
 
     {!ratingsLoading && ratings.length > 0 && (
       <div className="space-y-3">
-        {ratings.map((r: any) => (
+        {ratings.map((r) => (
           <div
             key={r.id}
             className="p-4 border rounded-xl hover:shadow-md transition bg-slate-50"
