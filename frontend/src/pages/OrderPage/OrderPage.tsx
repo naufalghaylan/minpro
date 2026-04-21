@@ -14,15 +14,26 @@ export default function OrderPage() {
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
 
-  // 🔥 REVIEW STATE
+  // 🔥 REVIEW
   const [reviews, setReviews] = useState<any[]>([]);
 
-  // 🔥 VOUCHER STATE
+  // 🔥 VOUCHER
   const [voucherCode, setVoucherCode] = useState("");
   const [preview, setPreview] = useState<any>(null);
   const [loadingVoucher, setLoadingVoucher] = useState(false);
 
+  // 🔥 REFERRAL
+  const [useReferral, setUseReferral] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+
   const BASE_URL = "http://localhost:3000";
+
+  // 🔥 AUTO RESET REFERRAL
+  useEffect(() => {
+    if (!useReferral) {
+      setReferralCode("");
+    }
+  }, [useReferral]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -32,24 +43,26 @@ export default function OrderPage() {
   useEffect(() => {
     if (eventId) {
       fetchEvent();
-      fetchReviews(); // 🔥 ambil review
+      fetchReviews();
     }
   }, [eventId]);
 
-  const fetchEvent = async () => {
-    const res = await api.get(`/events/${eventId}`);
-    setEvent(res.data);
-  };
+const fetchEvent = async () => {
+  const res = await api.get(`/events/${eventId}`);
+  setEvent(res.data);
+};
 
-  // 🔥 FETCH REVIEW
-  const fetchReviews = async () => {
-    try {
-      const res = await api.get(`/reviews/${eventId}`);
-      setReviews(res.data);
-    } catch (err) {
-      console.error("Review error:", err);
-    }
-  };
+const fetchReviews = async () => {
+  try {
+    const res = await api.get(`/events/${eventId}/reviews`);
+    setReviews(res.data);
+  } catch (err) {
+    console.error("Review error:", err);
+  }
+};
+
+
+
 
   const getImage = () => {
     const img =
@@ -100,7 +113,6 @@ export default function OrderPage() {
     return event.price;
   };
 
-  // 🔥 APPLY VOUCHER
   const applyVoucher = async () => {
     if (!token) {
       alert("Login dulu!");
@@ -136,34 +148,39 @@ export default function OrderPage() {
 
   const countdown = getCountdown(event.discountEnd);
 
-  // 🔥 AVG RATING
   const avgRating =
     reviews.reduce((acc, r) => acc + r.rating, 0) /
     (reviews.length || 1);
 
-  const handleCheckout = async () => {
-    if (!token) {
-      alert("Harap login dulu!");
-      navigate("/login");
-      return;
-    }
+const handleCheckout = async () => {
+  if (!token) {
+    alert("Harap login dulu!");
+    navigate("/login");
+    return;
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const res = await api.post(
-        "/checkout",
-        { eventId, quantity, voucherCode },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    const res = await api.post(
+      "/checkout",
+      {
+        eventId,
+        quantity,
+        voucherCode,
+        referralCode: useAuthStore.getState().user?.referredBy || null, // 🔥 otomatis
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      navigate(`/transactions/${res.data.transactionId}`);
-    } catch (err: any) {
-      alert(err.response?.data?.message || "Checkout gagal");
-    } finally {
-      setLoading(false);
-    }
-  };
+    navigate(`/transactions/${res.data.transactionId}`);
+  } catch (err: any) {
+    alert(err.response?.data?.message || "Checkout gagal");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -196,22 +213,11 @@ export default function OrderPage() {
 
           <h1 className="text-2xl font-bold">{event.name}</h1>
 
-          {/* ⭐ RATING */}
           <p className="text-yellow-500 text-sm mt-1">
             ⭐ {avgRating.toFixed(1)} / 5 ({reviews.length} review)
           </p>
 
           <p className="text-gray-500 mb-2">{event.description}</p>
-
-          <div className="text-sm text-gray-600 mb-4 space-y-1">
-            <p>
-              📅 {event.eventDate
-                ? new Date(event.eventDate).toLocaleDateString("id-ID")
-                : "-"}
-            </p>
-            <p>⏰ {event.startTime} - {event.endTime}</p>
-            <p>📍 {event.location}, {event.city}</p>
-          </div>
 
           {/* PRICE */}
           <div className="mb-4">
@@ -229,11 +235,10 @@ export default function OrderPage() {
           {/* QUANTITY */}
           <div className="flex items-center justify-between mb-4">
             <span className="font-medium">Jumlah</span>
-
             <div className="flex items-center gap-3">
-              <button onClick={() => setQuantity((q) => Math.max(1, q - 1))} className="w-8 h-8 rounded-full bg-gray-200">-</button>
-              <span className="text-lg font-semibold">{quantity}</span>
-              <button onClick={() => setQuantity((q) => q + 1)} className="w-8 h-8 rounded-full bg-gray-200">+</button>
+              <button onClick={() => setQuantity(q => Math.max(1, q - 1))}>-</button>
+              <span>{quantity}</span>
+              <button onClick={() => setQuantity(q => q + 1)}>+</button>
             </div>
           </div>
 
@@ -244,70 +249,29 @@ export default function OrderPage() {
                 value={voucherCode}
                 onChange={(e) => setVoucherCode(e.target.value)}
                 placeholder="Masukkan kode voucher"
-                className="flex-1 px-3 py-2 outline-none"
+                className="flex-1 px-3 py-2"
               />
-              <button
-                onClick={applyVoucher}
-                disabled={!voucherCode || loadingVoucher}
-                className="px-4 bg-blue-600 text-white text-sm font-semibold disabled:bg-gray-300"
-              >
-                {loadingVoucher ? "..." : "Apply →"}
+              <button onClick={applyVoucher}>
+                Apply
               </button>
             </div>
           </div>
 
+          {/* 🔥 REFERRAL */}
+          
+
           {/* SUMMARY */}
           <div className="border-t pt-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span>Harga x {quantity}</span>
-              <span>Rp {(price * quantity).toLocaleString()}</span>
-            </div>
-
-            {isDiscount && (
-              <div className="flex justify-between text-red-500">
-                <span>Diskon Event</span>
-                <span>- Rp {((price - baseFinalPrice) * quantity).toLocaleString()}</span>
-              </div>
-            )}
-
-            {preview?.voucher && (
-              <div className="flex justify-between text-green-600">
-                <span>Voucher ({preview.voucher})</span>
-                <span>- Rp {preview.voucherDiscount.toLocaleString()}</span>
-              </div>
-            )}
-
-            <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span className="text-blue-600">Rp {total.toLocaleString()}</span>
+              <span>Rp {total.toLocaleString()}</span>
             </div>
           </div>
 
-          {/* 🔥 REVIEW LIST */}
-          <div className="mt-6 border-t pt-4">
-            <h2 className="font-semibold mb-3">Review Pengguna</h2>
-
-            {reviews.length === 0 ? (
-              <p className="text-gray-500 text-sm">Belum ada review</p>
-            ) : (
-              <div className="space-y-3 max-h-40 overflow-auto">
-                {reviews.map((r, i) => (
-                  <div key={i} className="border p-2 rounded text-sm">
-                    <p className="text-yellow-500">
-                      {"⭐".repeat(r.rating)}
-                    </p>
-                    <p>{r.comment}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* BUTTON */}
           <button
             onClick={handleCheckout}
             disabled={loading}
-            className="w-full mt-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-500 to-indigo-600"
+            className="w-full mt-6 py-3 bg-blue-600 text-white rounded-xl"
           >
             {loading ? "Processing..." : "Checkout"}
           </button>

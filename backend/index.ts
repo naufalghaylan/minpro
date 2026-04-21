@@ -587,7 +587,7 @@ app.delete("/vouchers/:id", authMiddleware, async (req: AuthRequest, res) => {
 app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
-    const { eventId, quantity, voucherCode, couponCode, walletAmount } = req.body;
+const { eventId, quantity, voucherCode, couponCode, walletAmount, referralCode } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -650,7 +650,24 @@ if (event.availableSeats < qty) {
       let couponUsed: string | null = null;
       let couponDiscount = 0;
       let walletUsed = 0;
+      // ======================
+// 🔥 APPLY REFERRAL
+// ======================
+let referralDiscount = 0;
+let referralUsed: string | null = null;
 
+if (referralCode) {
+  const refUser = await tx.user.findUnique({
+    where: { referralCode },
+  });
+
+  // 🔥 valid referral
+  if (refUser && refUser.id !== userId) {
+    referralDiscount = 10000; // 💰 bebas mau berapa (contoh 10k)
+    finalPrice -= referralDiscount;
+    referralUsed = referralCode;
+  }
+}
       if (voucherCode) {
         const voucher = await tx.vouchers.findFirst({
           where: {
@@ -772,6 +789,8 @@ if (event.availableSeats < qty) {
           couponDiscountUsed: Math.round(couponDiscount * qty),
           voucherCodeUsed: voucherUsed,
           voucherDiscountUsed: Math.round(voucherDiscount * qty),
+          referralCodeUsed: referralUsed,
+referralDiscountUsed: Math.round(referralDiscount * qty),
           status: "PENDING",
           expiredAt,
         } as any,
@@ -788,6 +807,8 @@ if (event.availableSeats < qty) {
 
           totalAmount,
           transactionId: trx.id,
+          referralCodeUsed: referralUsed,
+referralDiscount: Math.round(referralDiscount),
         },
       });
 
@@ -818,6 +839,7 @@ if (event.availableSeats < qty) {
       voucher: result.voucher, // 🔥 kirim ke frontend
       coupon: result.coupon,
       walletUsed: result.walletUsed,
+      
     });
 
   } catch (error: any) {
@@ -1002,7 +1024,7 @@ const trx = await prisma.transaction.findFirst({
       });
     }
 
-    // 🔥 CEK SUDAH REVIEW BELUM (INI YANG KAMU TANYA)
+    // 🔥 CEK SUDAH REVIEW BELUM 
     const existing = await prisma.reviews.findFirst({
       where: {
         userId,
@@ -1088,12 +1110,12 @@ app.get("/my-tickets", authMiddleware, async (req: AuthRequest, res) => {
     res.status(400).json({ message: error.message });
   }
 });
-app.get("/reviews/:eventId", async (req, res) => {
+app.get("/reviews/:id", async (req, res) => {
   try {
-    const { eventId } = req.params;
+    const { id } = req.params;
 
     const reviews = await prisma.reviews.findMany({
-      where: { eventId },
+      where: { id },
       include: {
         user: true, // opsional (biar ada nama user)
       },
@@ -1106,6 +1128,39 @@ app.get("/reviews/:eventId", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Gagal ambil review" });
+  }
+});
+app.get("/api/ratings/organizer", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const userId = req.user.id;
+
+    const reviews = await prisma.reviews.findMany({
+      where: {
+        event: {
+          eventOrganizerId: userId,
+        },
+      },
+      include: {
+        user: {
+          select: { name: true },
+        },
+        event: {
+          select: { name: true },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.json(reviews);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Failed to fetch ratings" });
   }
 });
 // ==================

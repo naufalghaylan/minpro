@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import api from '../../api';
+import { useAuthStore } from '../../store/auth';
 import {
   Bar,
   BarChart,
@@ -34,7 +36,13 @@ import type {
   OrganizerTransactionStatus,
 } from '../../types/organizer-dashboard';
 
-type DashboardTab = 'overview' | 'events' | 'transactions' | 'statistics' | 'attendees';
+type DashboardTab =
+  | 'overview'
+  | 'events'
+  | 'transactions'
+  | 'statistics'
+  | 'attendees'
+  | 'ratings'; 
 
 type StatsQuery = {
   groupBy: OrganizerStatisticsGroupBy;
@@ -57,6 +65,20 @@ type EditEventFormValues = {
   discountStart: string;
   discountEnd: string;
 };
+interface RatingItem {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  user: {
+    name: string;
+  };
+  event: {
+    name: string;
+  };
+}
+
+
 
 const tabs: Array<{ id: DashboardTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
@@ -64,6 +86,7 @@ const tabs: Array<{ id: DashboardTab; label: string }> = [
   { id: 'transactions', label: 'Transactions' },
   { id: 'statistics', label: 'Statistics' },
   { id: 'attendees', label: 'Attendee List' },
+  { id: 'ratings', label: 'Ratings ⭐' },
 ];
 
 const transactionStatuses: Array<OrganizerTransactionStatus | 'ALL'> = [
@@ -206,6 +229,10 @@ export default function OrganizerDashboardPage() {
   const [selectedAttendeeEventId, setSelectedAttendeeEventId] = useState('');
   const [attendees, setAttendees] = useState<OrganizerAttendeeItem[]>([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
+  // 🔥 RATING STATE
+const [ratings, setRatings] = useState<RatingItem[]>([]);
+const [ratingsLoading, setRatingsLoading] = useState(false);
+const [avgRating, setAvgRating] = useState(0);
 
   const [globalMessage, setGlobalMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
@@ -354,7 +381,46 @@ export default function OrganizerDashboardPage() {
       setAttendeesLoading(false);
     }
   }, []);
+const fetchRatings = useCallback(async () => {
+  try {
+    setRatingsLoading(true);
 
+    // 🔥 ambil token dari zustand
+    const token = useAuthStore.getState().token;
+
+    const res = await api.get("/ratings/organizer", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    console.log("RATINGS:", res.data);
+
+    const data = Array.isArray(res.data) ? res.data : res.data.data;
+
+    setRatings(data);
+
+    // 🔥 average
+    if (data.length > 0) {
+      const avg =
+        data.reduce((acc: number, item: any) => acc + item.rating, 0) /
+        data.length;
+
+      setAvgRating(Number(avg.toFixed(1)));
+    } else {
+      setAvgRating(0);
+    }
+
+  } catch (err: any) {
+    console.error("Rating error:", err);
+
+    if (err.response?.status === 401) {
+      alert("Unauthorized (rating)");
+    }
+  } finally {
+    setRatingsLoading(false);
+  }
+}, []);
   useEffect(() => {
     const now = new Date();
 
@@ -372,6 +438,11 @@ export default function OrganizerDashboardPage() {
       void fetchAttendees(selectedAttendeeEventId);
     }
   }, [fetchAttendees, selectedAttendeeEventId]);
+  useEffect(() => {
+  if (activeTab === "ratings") {
+    fetchRatings();
+  }
+}, [activeTab, fetchRatings]);
 
   const openEditModal = (event: OrganizerEventItem) => {
     setEditingEvent(event);
@@ -1140,7 +1211,71 @@ export default function OrganizerDashboardPage() {
             </form>
           </div>
         </div>
+        
       )}
+{activeTab === 'ratings' && (
+  <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    
+    {/* HEADER */}
+    <div className="flex items-center justify-between mb-4">
+      <h2 className="text-xl font-bold">Ratings ⭐</h2>
+
+      <div className="text-sm text-slate-600">
+        Avg:
+        <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-600 rounded-lg font-semibold">
+          {avgRating.toFixed(1)}
+        </span>
+      </div>
+    </div>
+
+    {ratingsLoading && <p className="text-sm text-slate-500">Loading...</p>}
+
+    {!ratingsLoading && ratings.length === 0 && (
+      <p className="text-sm text-slate-500">Belum ada review</p>
+    )}
+
+    {!ratingsLoading && ratings.length > 0 && (
+      <div className="space-y-3">
+        {ratings.map((r: any) => (
+          <div
+            key={r.id}
+            className="p-4 border rounded-xl hover:shadow-md transition bg-slate-50"
+          >
+            {/* TOP */}
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="font-semibold text-slate-800">
+                  {r.user?.name || "User"}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {r.event?.name || "Event"}
+                </p>
+              </div>
+
+              <div className="text-xs text-slate-400">
+                {new Date(r.createdAt).toLocaleDateString()}
+              </div>
+            </div>
+
+            {/* RATING */}
+            <div className="mt-2 flex items-center gap-1 text-yellow-500">
+              {"★".repeat(r.rating)}
+              {"☆".repeat(5 - r.rating)}
+              <span className="ml-2 text-sm text-slate-600">
+                ({r.rating})
+              </span>
+            </div>
+
+            {/* COMMENT */}
+            <p className="mt-2 text-sm text-slate-700">
+              {r.comment || "Tidak ada komentar"}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
+)}
     </div>
   );
 }
