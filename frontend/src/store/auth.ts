@@ -10,6 +10,7 @@ type User = {
   profileImageUrl?: string | null;
   referralCode?: string;
   role: "CUSTOMER" | "EVENT_ORGANIZER";
+  referredBy: string | null;
 };
 
 type AuthState = {

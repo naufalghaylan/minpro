@@ -122,10 +122,20 @@ export default function Home() {
                 100
             );
 
+            // 🔥 STATUS LOGIC (dari backend)
+            const isEnded = item.status === "ENDED";
+            const isOngoing = item.status === "ONGOING";
+            const isUpcoming = item.status === "UPCOMING";
+            const isSoldOut = item.availableSeats === 0;
+
             return (
               <div
                 key={item.id}
-                className="bg-white/70 backdrop-blur-xl rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-2 transition duration-300"
+                onClick={() => {
+                  if (isEnded) return;
+                  navigate(`/order/${item.id}`);
+                }}
+                className={`bg-white/70 backdrop-blur-xl rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-2 transition duration-300 ${isEnded ? 'opacity-75' : ''}`}
               >
                 {/* IMAGE */}
                 <div className="relative">
@@ -140,6 +150,21 @@ export default function Home() {
                     {discountPercent}% OFF
                   </span>
 
+                  {/* 🔥 STATUS BADGE */}
+                  <span
+                    className={`absolute top-3 right-3 text-xs px-3 py-1 rounded-full text-white ${
+                      isEnded
+                        ? "bg-gray-500"
+                        : isOngoing
+                        ? "bg-green-500"
+                        : "bg-blue-500"
+                    }`}
+                  >
+                    {isEnded && "ENDED"}
+                    {isOngoing && "ONGOING"}
+                    {isUpcoming && "UPCOMING"}
+                  </span>
+
                   {/* 🔥 COUNTDOWN */}
                   <span className="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
                     ⏰ {getCountdown(item.discountEnd)}
@@ -152,8 +177,25 @@ export default function Home() {
                   </h3>
 
                   <p className="text-gray-500 text-sm mt-1">
+                    📍 {item.city || "Unknown Location"}
+                  </p>
+
+                  <p className="text-gray-500 text-sm">
                     Quota: {item.availableSeats}/{item.totalSeats}
                   </p>
+
+                  {/* 🔥 STATUS TEXT */}
+                  {isEnded && (
+                    <p className="text-gray-500 text-xs mt-1">
+                      ❌ Event sudah selesai
+                    </p>
+                  )}
+
+                  {isOngoing && (
+                    <p className="text-green-500 text-xs mt-1 animate-pulse">
+                      🔥 Sedang berlangsung!
+                    </p>
+                  )}
 
                   {/* PRICE */}
                   <div className="mt-3">
@@ -167,15 +209,16 @@ export default function Home() {
                   </div>
 
                   <button
-                    onClick={() => navigate(`/order/${item.id}`)}
-                    disabled={item.availableSeats === 0}
+                    disabled={isEnded || isSoldOut}
                     className={`mt-5 w-full py-2 rounded-xl text-white font-semibold transition ${
-                      item.availableSeats === 0
-                        ? "bg-gray-400"
+                      isEnded || isSoldOut
+                        ? "bg-gray-400 cursor-not-allowed"
                         : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90"
                     }`}
                   >
-                    {item.availableSeats === 0
+                    {isEnded
+                      ? "Event Selesai"
+                      : isSoldOut
                       ? "Sold Out"
                       : "Beli Sekarang"}
                   </button>

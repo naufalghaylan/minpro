@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import Header from "../../components/navbar";
 import api from "../../api";
 import { useAuthStore } from "../../store/auth";
+import { getWalletAndCoupons, type Coupon } from "../../api/auth";
 
 export default function OrderPage() {
   const { eventId } = useParams();
@@ -14,10 +15,19 @@ export default function OrderPage() {
   const [loading, setLoading] = useState(false);
   const [now, setNow] = useState(Date.now());
 
-  // 🔥 VOUCHER STATE
+  // REVIEW
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+
+  // VOUCHER / COUPON
   const [voucherCode, setVoucherCode] = useState("");
   const [preview, setPreview] = useState<any>(null);
   const [loadingVoucher, setLoadingVoucher] = useState(false);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
 
   const BASE_URL = "http://localhost:3000";
 
@@ -27,12 +37,82 @@ export default function OrderPage() {
   }, []);
 
   useEffect(() => {
-    const fetchEvent = async () => {
-      const res = await api.get(`/events/${eventId}`);
-      setEvent(res.data);
-    };
-    if (eventId) fetchEvent();
+    if (eventId) {
+      fetchEvent();
+      fetchReviews();
+      fetchCoupons();
+      checkPurchaseAndReview();
+    }
   }, [eventId]);
+
+  const fetchEvent = async () => {
+    const res = await api.get(`/events/${eventId}`);
+    setEvent(res.data);
+  };
+
+  const fetchReviews = async () => {
+    try {
+      const res = await api.get(`/events/${eventId}/reviews`);
+      setReviews(res.data);
+    } catch (err) {
+      console.error("Review error:", err);
+    }
+  };
+
+  const fetchCoupons = async () => {
+    try {
+      const data = await getWalletAndCoupons();
+      setCoupons(data.coupons);
+    } catch (err) {
+      console.error("Failed to fetch coupons:", err);
+      setCoupons([]);
+    }
+  };
+
+  const checkPurchaseAndReview = async () => {
+    if (!token) return;
+
+    try {
+      // Check if user has purchased this event
+      const trxRes = await api.get("/transactions");
+      const userTransactions = trxRes.data;
+      const hasPurchasedEvent = userTransactions.some(
+        (trx: any) => trx.order?.eventId === eventId && trx.status === "DONE"
+      );
+      setHasPurchased(hasPurchasedEvent);
+
+      // Check if user has already reviewed this event
+      const userId = useAuthStore.getState().user?.id;
+      const hasReviewedEvent = reviews.some(
+        (review: any) => review.userId === userId
+      );
+      setHasReviewed(hasReviewedEvent);
+    } catch (err) {
+      console.error("Error checking purchase/review:", err);
+    }
+  };
+
+  const submitReview = async () => {
+    if (!comment.trim()) return alert("Komentar tidak boleh kosong");
+    if (!token) return alert("Login dulu!");
+
+    try {
+      setReviewLoading(true);
+      await api.post(
+        "/reviews",
+        { eventId, rating, comment },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert("Review berhasil dikirim!");
+      setComment("");
+      setHasReviewed(true);
+      fetchReviews();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Gagal mengirim review");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   const getImage = () => {
     const img =
@@ -83,7 +163,6 @@ export default function OrderPage() {
     return event.price;
   };
 
-  // 🔥 APPLY VOUCHER (PREVIEW)
   const applyVoucher = async () => {
     if (!token) {
       alert("Login dulu!");
@@ -95,16 +174,8 @@ export default function OrderPage() {
 
       const res = await api.post(
         "/preview",
-        {
-          eventId,
-          quantity,
-          voucherCode,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { eventId, quantity, voucherCode },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setPreview(res.data);
@@ -116,17 +187,36 @@ export default function OrderPage() {
     }
   };
 
+  const isExpired = (expiresAt: string): boolean => {
+    return new Date(expiresAt) < new Date();
+  };
+
+  const isUsed = (usedAt: string | null): boolean => {
+    return usedAt !== null;
+  };
+
+  const handleCouponClick = (couponCode: string) => {
+    setVoucherCode(couponCode);
+    applyVoucher();
+  };
+
   if (!event) return <p className="text-center mt-10">Loading...</p>;
 
   const price = Number(event.price);
   const baseFinalPrice = Math.max(0, calculateFinalPrice());
   const isDiscount = baseFinalPrice < price;
-
-  // 🔥 PAKAI PREVIEW KALAU ADA
-  const finalPrice = preview?.finalPrice ?? baseFinalPrice;
+  let finalPrice = preview?.finalPrice ?? baseFinalPrice;
+  if (finalPrice < 0) finalPrice = 0;
   const total = preview?.totalAmount ?? finalPrice * quantity;
 
   const countdown = getCountdown(event.discountEnd);
+
+  const avgRating =
+    reviews.reduce((acc, r) => acc + r.rating, 0) /
+    (reviews.length || 1);
+
+  const isEnded = event.status === "ENDED";
+  const isSoldOut = event.availableSeats === 0;
 
   const handleCheckout = async () => {
     if (!token) {
@@ -143,11 +233,9 @@ export default function OrderPage() {
         {
           eventId,
           quantity,
-          voucherCode, // 🔥 kirim voucher
+          voucherCode,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       navigate(`/transactions/${res.data.transactionId}`);
@@ -189,17 +277,45 @@ export default function OrderPage() {
 
           <h1 className="text-2xl font-bold">{event.name}</h1>
 
-          <p className="text-gray-500 mb-2">{event.description}</p>
-
-          <div className="text-sm text-gray-600 mb-4 space-y-1">
-            <p>
-              📅 {event.eventDate
-                ? new Date(event.eventDate).toLocaleDateString("id-ID")
-                : "-"}
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-yellow-500 text-sm">
+              ⭐ {avgRating.toFixed(1)} / 5 ({reviews.length} review)
             </p>
 
-            <p>⏰ {event.startTime} - {event.endTime}</p>
-            <p>📍 {event.location}, {event.city}</p>
+            {/* Status Badge */}
+            <span className={`text-xs px-3 py-1 rounded-full text-white ${
+              isEnded
+                ? "bg-gray-500"
+                : isSoldOut
+                ? "bg-red-500"
+                : "bg-green-500"
+            }`}>
+              {isEnded && "ENDED"}
+              {isSoldOut && "SOLD OUT"}
+              {!isEnded && !isSoldOut && "AVAILABLE"}
+            </span>
+          </div>
+
+          <p className="text-gray-500 mb-2">{event.description}</p>
+
+          {/* REVIEWS LIST */}
+          <div className="mt-4 mb-4">
+            <h3 className="font-semibold mb-3">Reviews</h3>
+            {reviews.length > 0 ? (
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {reviews.map((review: any) => (
+                  <div key={review.id} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">{review.user?.name || "Anonymous"}</span>
+                      <span className="text-yellow-500 text-sm">⭐ {review.rating}/5</span>
+                    </div>
+                    <p className="text-sm text-gray-600">{review.comment}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">Belum ada review</p>
+            )}
           </div>
 
           {/* PRICE */}
@@ -216,88 +332,157 @@ export default function OrderPage() {
           </div>
 
           {/* QUANTITY */}
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-medium">Jumlah</span>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-8 h-8 rounded-full bg-gray-200"
-              >-</button>
-
-              <span className="text-lg font-semibold">{quantity}</span>
-
-              <button
-                onClick={() => setQuantity((q) => q + 1)}
-                className="w-8 h-8 rounded-full bg-gray-200"
-              >+</button>
-            </div>
-          </div>
-
-          {/* 🔥 VOUCHER INPUT */}
-<div className="mb-4">
-  <div className="flex border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-
-    <input
-      value={voucherCode}
-      onChange={(e) => setVoucherCode(e.target.value)}
-      placeholder="Masukkan kode voucher"
-      className="flex-1 px-3 py-2 outline-none"
-    />
-
-    <button
-      onClick={applyVoucher}
-      disabled={!voucherCode || loadingVoucher}
-      className="px-4 bg-blue-600 text-white text-sm font-semibold disabled:bg-gray-300"
-    >
-      {loadingVoucher ? "..." : "Apply →"}
-    </button>
-
-  </div>
-</div>
-
-          {/* 🔥 SUMMARY */}
-          <div className="border-t pt-4 space-y-2 text-sm">
-
-            <div className="flex justify-between">
-              <span>Harga x {quantity}</span>
-              <span>Rp {(price * quantity).toLocaleString()}</span>
-            </div>
-
-            {isDiscount && (
-              <div className="flex justify-between text-red-500">
-                <span>Diskon Event</span>
-                <span>
-                  - Rp {((price - baseFinalPrice) * quantity).toLocaleString()}
-                </span>
+          {!isEnded && !isSoldOut && (
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-medium">Jumlah</span>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setQuantity(q => Math.max(1, q - 1))}>-</button>
+                <span>{quantity}</span>
+                <button onClick={() => setQuantity(q => q + 1)}>+</button>
               </div>
-            )}
-
-            {preview?.voucher && (
-              <div className="flex justify-between text-green-600">
-                <span>Voucher ({preview.voucher})</span>
-                <span>
-                  - Rp {preview.voucherDiscount.toLocaleString()}
-                </span>
-              </div>
-            )}
-
-            <div className="flex justify-between font-bold text-lg">
-              <span>Total</span>
-              <span className="text-blue-600">
-                Rp {total.toLocaleString()}
-              </span>
             </div>
-          </div>
+          )}
 
-          {/* BUTTON */}
+          {/* VOUCHER / COUPON */}
+          {!isEnded && !isSoldOut && (
+            <div className="mb-4">
+              <div className="flex border rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-blue-400 transition">
+
+                <input
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                  placeholder="Kode voucher / coupon"
+                  className="flex-1 px-4 py-2 outline-none"
+                />
+
+                <button
+                  onClick={applyVoucher}
+                  disabled={!voucherCode || loadingVoucher}
+                  className={`px-5 font-semibold transition
+                    ${!voucherCode
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 text-white"}
+                  `}
+                >
+                  {loadingVoucher ? "..." : "Apply"}
+                </button>
+              </div>
+
+              {preview && (
+                <p className="text-green-600 text-sm mt-1">
+                  ✔ Voucher/Coupon berhasil digunakan
+                </p>
+              )}
+
+              {/* Available Coupons */}
+              {coupons.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-slate-600 mb-2">Kupon tersedia:</p>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {coupons.map((coupon) => {
+                      const expired = isExpired(coupon.expiresAt);
+                      const used = isUsed(coupon.usedAt);
+
+                      if (expired || used) return null;
+
+                      return (
+                        <div
+                          key={coupon.id}
+                          onClick={() => handleCouponClick(coupon.code)}
+                          className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-blue-800">{coupon.code}</p>
+                            <p className="text-xs text-slate-600">potongan sebesar {coupon.amount.toLocaleString()}%</p>
+                          </div>
+                          <span className="text-xs text-blue-600 font-medium">Klik untuk pakai</span>
+                        </div>
+                      );
+                    })}
+                    {coupons.every(c => isExpired(c.expiresAt) || isUsed(c.usedAt)) && (
+                      <p className="text-xs text-slate-500">Tidak ada kupon yang tersedia</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SUMMARY */}
+          {!isEnded && !isSoldOut && (
+            <div className="border-t pt-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Total</span>
+                <span>Rp {total.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={handleCheckout}
-            disabled={loading}
-            className="w-full mt-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-500 to-indigo-600"
+            disabled={loading || isEnded || isSoldOut}
+            className={`w-full mt-6 py-3 rounded-xl text-white font-semibold transition ${
+              isEnded || isSoldOut
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
-            {loading ? "Processing..." : "Checkout"}
+            {isEnded
+              ? "Event Selesai"
+              : isSoldOut
+              ? "Sold Out"
+              : loading
+              ? "Processing..."
+              : "Checkout"}
           </button>
+
+          {/* REVIEW SECTION - Only show if user has purchased */}
+          {hasPurchased && (
+            <div className="mt-6 border-t pt-6">
+              <h3 className="font-semibold text-lg mb-4">Beri Review</h3>
+              
+              {hasReviewed ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-green-700">✓ Kamu sudah memberikan review untuk event ini</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
+                    <select
+                      value={rating}
+                      onChange={(e) => setRating(Number(e.target.value))}
+                      className="w-full md:w-auto border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+                    >
+                      <option value={5}>⭐⭐⭐⭐⭐ (5/5)</option>
+                      <option value={4}>⭐⭐⭐⭐ (4/5)</option>
+                      <option value={3}>⭐⭐⭐ (3/5)</option>
+                      <option value={2}>⭐⭐ (2/5)</option>
+                      <option value={1}>⭐ (1/5)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Komentar</label>
+                    <textarea
+                      placeholder="Tulis pengalaman kamu..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none resize-none h-24"
+                    />
+                  </div>
+
+                  <button
+                    onClick={submitReview}
+                    disabled={reviewLoading}
+                    className="w-full md:w-auto px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+                  >
+                    {reviewLoading ? "Mengirim..." : "Kirim Review"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

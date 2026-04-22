@@ -143,11 +143,17 @@ model orders {
   eventId       String
   quantity      Int
   totalAmount   Float
-  transactionId String   @unique  // 🔥 penting: 1 order = 1 transaction
+  transactionId String   @unique
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-price       Int @default(0)
-finalPrice  Int @default(0)     
+
+  price       Int @default(0)
+  finalPrice  Int @default(0)
+
+  // 🔥 TAMBAHAN
+  referralCodeUsed String?   // kode yang dipakai
+  referralDiscount Int @default(0)
+
   users         User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
   event         events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   transaction   transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
@@ -168,6 +174,9 @@ model transaction {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   expiredAt    DateTime?
+    referralCodeUsed      String?   // ✅ TAMBAH
+  referralDiscountUsed  Int      @default(0)
+
   user         User   @relation(fields: [userId], references: [id])
   order        orders?
 }

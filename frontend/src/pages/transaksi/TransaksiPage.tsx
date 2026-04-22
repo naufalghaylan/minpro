@@ -24,7 +24,9 @@ export default function TransactionPage() {
 
   const BASE_URL = "http://localhost:3000";
 
+  // ======================
   // 🔥 FETCH DATA
+  // ======================
   useEffect(() => {
     if (!id) return;
 
@@ -32,7 +34,14 @@ export default function TransactionPage() {
       try {
         const res = await api.get(`/transactions/${id}`);
 
-        setOrder(res.data.order);
+        setOrder({
+          ...res.data.order,
+          totalAmount: res.data.totalAmount,
+          voucherDiscountUsed: res.data.voucherDiscount,
+          couponDiscountUsed: res.data.couponDiscount,
+          referralDiscountUsed: res.data.referralDiscount,
+          walletAmountUsed: res.data.walletUsed,
+        });
         setEvent(res.data.order.event);
         setStatus(res.data.status);
         setExpiredAt(res.data.expiredAt);
@@ -51,7 +60,9 @@ export default function TransactionPage() {
     fetchData();
   }, [id, navigate]);
 
+  // ======================
   // 🔥 COUNTDOWN
+  // ======================
   useEffect(() => {
     if (!expiredAt) return;
 
@@ -75,25 +86,47 @@ export default function TransactionPage() {
     return () => clearInterval(interval);
   }, [expiredAt]);
 
+  // ======================
   // 🔥 IMAGE
+  // ======================
   const image = event?.event_images?.[0]?.url
     ? `${BASE_URL}/uploads/${event.event_images[0].url}`
     : "/no-image.png";
 
-  // 🔥 PRICING (FIX DISKON)
-const price = Number(order?.price ?? event?.price ?? 0);
-const finalPrice = Number(
-  order?.finalPrice ?? event?.finalPrice ?? price
-);
+  // ======================
+  // 🔥 PRICING (AMBIL DARI BACKEND)
+  // ======================
+  const price = Number(order?.price ?? 0);
+  const finalPrice = Number(order?.finalPrice ?? price);
   const quantity = Number(order?.quantity ?? 0);
+
+  const subtotal = price * quantity;
+
+  const voucherDiscount = Number(order?.voucherDiscountUsed ?? 0);
+  const couponDiscount = Number(order?.couponDiscountUsed ?? 0);
+  const referralDiscount = Number(order?.referralDiscountUsed ?? 0);
+  const walletUsed = Number(order?.walletAmountUsed ?? 0);
+
+  // ✅ PENTING: TOTAL LANGSUNG DARI BACKEND
+const total = Number(order?.totalAmount ?? 0);
 
   const isDiscount = finalPrice < price;
 
-  const subtotal = price * quantity;
-  const discount = (price - finalPrice) * quantity;
-  const total = finalPrice * quantity;
+  console.log("DEBUG FRONTEND:", {
+    price,
+    finalPrice,
+    quantity,
+    subtotal,
+    voucherDiscount,
+    couponDiscount,
+    referralDiscount,
+    walletUsed,
+    total,
+  });
 
-  // 🔥 STATUS MESSAGE
+  // ======================
+  // 🔥 STATUS
+  // ======================
   let statusMessage = "";
   let disableForm = false;
 
@@ -114,7 +147,9 @@ const finalPrice = Number(
     disableForm = true;
   }
 
-  // 🔥 UPLOAD
+  // ======================
+  // 🔥 IMAGE HANDLER
+  // ======================
   const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (disableForm) return;
 
@@ -125,7 +160,9 @@ const finalPrice = Number(
     setPreview(URL.createObjectURL(file));
   };
 
+  // ======================
   // 🔥 SUBMIT
+  // ======================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -184,7 +221,6 @@ const finalPrice = Number(
 
             <h2 className="text-xl font-bold mt-3">{event?.name}</h2>
 
-            {/* 🔥 PRICE */}
             {isDiscount && (
               <p className="text-gray-400 line-through text-sm">
                 Rp {price.toLocaleString()}
@@ -203,14 +239,36 @@ const finalPrice = Number(
                 <span>Rp {subtotal.toLocaleString()}</span>
               </div>
 
-              {isDiscount && (
+              {voucherDiscount > 0 && (
                 <div className="flex justify-between text-red-500">
-                  <span>Diskon</span>
-                  <span>- Rp {discount.toLocaleString()}</span>
+                  <span>Voucher</span>
+                  <span>- Rp {voucherDiscount.toLocaleString()}</span>
                 </div>
               )}
 
-              <div className="flex justify-between font-bold text-lg">
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-red-500">
+                  <span>Coupon</span>
+                  <span>- Rp {couponDiscount.toLocaleString()}</span>
+                </div>
+              )}
+
+              {referralDiscount > 0 && (
+                <div className="flex justify-between text-red-500">
+                  <span>Referral</span>
+                  <span>- Rp {referralDiscount.toLocaleString()}</span>
+                </div>
+              )}
+
+              {walletUsed > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Wallet</span>
+                  <span>- Rp {walletUsed.toLocaleString()}</span>
+                </div>
+              )}
+
+              {/* ✅ TOTAL FIX */}
+              <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
                 <span>Total</span>
                 <span className="text-blue-600">
                   Rp {total.toLocaleString()}
@@ -219,7 +277,6 @@ const finalPrice = Number(
 
             </div>
 
-            {/* 🔥 COUNTDOWN */}
             {status === "PENDING" && (
               <div className="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded">
                 <p className="font-bold">HARAP BAYAR SEBELUM :</p>
@@ -227,7 +284,6 @@ const finalPrice = Number(
               </div>
             )}
 
-            {/* 🔥 STATUS */}
             {statusMessage && (
               <div className="mt-4 p-3 bg-gray-200 rounded">
                 {statusMessage}
