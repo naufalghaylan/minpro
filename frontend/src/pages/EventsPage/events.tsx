@@ -149,13 +149,12 @@ console.log(events);
       <div
         key={item.id}
         onClick={() => {
-          if (isEnded) return; // ❌ ga bisa klik kalau ended
           setLoadingClick(item.id);
           setTimeout(() => {
             navigate(`/order/${item.id}`);
           }, 500);
         }}
-        className="cursor-pointer bg-white/70 backdrop-blur-xl rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-2 transition duration-300"
+        className={`cursor-pointer bg-white/70 backdrop-blur-xl rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl hover:-translate-y-2 transition duration-300 ${isEnded ? 'opacity-75' : ''}`}
       >
         {/* IMAGE */}
         <div className="relative">

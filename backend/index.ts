@@ -265,7 +265,7 @@ const {
 );
 app.get('/transactions/:id', authMiddleware, async (req: AuthRequest, res) => {
   try {
-const rawId = req.params.id;
+    const rawId = req.params.id;
     const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
     const trx = await prisma.transaction.findUnique({
@@ -273,10 +273,10 @@ const rawId = req.params.id;
       include: {
         order: {
           include: {
-            event : {
-            include: {
-              event_images: true,
-            }
+            event: {
+              include: {
+                event_images: true,
+              },
             },
           },
         },
@@ -287,7 +287,21 @@ const rawId = req.params.id;
       return res.status(404).json({ message: "Not found" });
     }
 
-    res.json(trx);
+    // 🔥 FLATTEN RESPONSE
+    res.json({
+      id: trx.id,
+      status: trx.status,
+      expiredAt: trx.expiredAt,
+
+      // 🔥 PENTING (INI YANG DIPAKAI FRONTEND)
+      totalAmount: trx.totalAmount,
+      walletUsed: trx.walletAmountUsed,
+      voucherDiscount: trx.voucherDiscountUsed,
+      couponDiscount: trx.couponDiscountUsed,
+      referralDiscount: trx.referralDiscountUsed,
+
+      order: trx.order,
+    });
 
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -428,7 +442,7 @@ app.post("/preview", authMiddleware, async (req: AuthRequest, res) => {
     let voucherDiscount = 0;
     let voucherUsed: string | null = null;
 
-    // 🔥 APPLY VOUCHER (TANPA UPDATE DB)
+    // 🔥 APPLY VOUCHER/COUPON (TANPA UPDATE DB)
     if (voucherCode) {
       const voucher = await prisma.vouchers.findFirst({
         where: {
@@ -437,24 +451,48 @@ app.post("/preview", authMiddleware, async (req: AuthRequest, res) => {
         },
       });
 
-      if (!voucher) throw new Error("Voucher tidak valid");
+      if (!voucher) {
+        // Coba cari sebagai coupon jika voucher tidak ditemukan
+        const coupon = await prisma.coupons.findFirst({
+          where: {
+            code: voucherCode,
+            userId: req.user?.id,
+            usedAt: null,
+            expiresAt: { gt: now },
+          },
+        });
 
-      if (voucher.quota && voucher.used >= voucher.quota) {
-        throw new Error("Voucher habis");
-      }
+        if (!coupon) throw new Error("Voucher/Coupon tidak valid");
 
-      if (now < voucher.startDate || now > voucher.endDate) {
-        throw new Error("Voucher tidak aktif");
-      }
+        // Apply coupon discount
+        if (coupon.amount <= 100) {
+          voucherDiscount = (finalPrice * coupon.amount) / 100;
+        } else {
+          voucherDiscount = coupon.amount;
+        }
 
-      if (voucher.discountType === "PERCENT") {
-        voucherDiscount = (finalPrice * voucher.discountValue) / 100;
+        voucherUsed = coupon.code;
       } else {
-        voucherDiscount = voucher.discountValue;
+        // Apply voucher discount
+        if (voucher.quota && voucher.used >= voucher.quota) {
+          throw new Error("Voucher habis");
+        }
+
+        if (now < voucher.startDate || now > voucher.endDate) {
+          throw new Error("Voucher tidak aktif");
+        }
+
+        if (voucher.discountType === "PERCENT") {
+          voucherDiscount = (finalPrice * voucher.discountValue) / 100;
+        } else {
+          voucherDiscount = voucher.discountValue;
+        }
+
+        voucherUsed = voucher.code;
       }
 
+      // Kurangi finalPrice dengan voucher discount
       finalPrice -= voucherDiscount;
-      voucherUsed = voucher.code;
     }
 
     if (finalPrice < 0) finalPrice = 0;
@@ -467,7 +505,7 @@ app.post("/preview", authMiddleware, async (req: AuthRequest, res) => {
       totalAmount,
       quantity: qty,
       voucher: voucherUsed,
-      voucherDiscount,
+      voucherDiscount: voucherDiscount * qty,
     });
 
   } catch (error: any) {
@@ -587,7 +625,7 @@ app.delete("/vouchers/:id", authMiddleware, async (req: AuthRequest, res) => {
 app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.id;
-const { eventId, quantity, voucherCode, couponCode, walletAmount, referralCode } = req.body;
+    const { eventId, quantity, voucherCode, couponCode, walletAmount, referralCode } = req.body;
 
     if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -599,16 +637,12 @@ const { eventId, quantity, voucherCode, couponCode, walletAmount, referralCode }
     }
 
     const requestedWalletAmount = Number(walletAmount ?? 0);
-
     if (Number.isNaN(requestedWalletAmount) || requestedWalletAmount < 0) {
       return res.status(400).json({ message: "walletAmount tidak valid" });
     }
 
     const existing = await prisma.transaction.findFirst({
-      where: {
-        userId,
-        status: "PENDING",
-      },
+      where: { userId, status: "PENDING" },
     });
 
     if (existing) {
@@ -618,161 +652,172 @@ const { eventId, quantity, voucherCode, couponCode, walletAmount, referralCode }
     }
 
     const result = await prisma.$transaction(async (tx) => {
-
       const event = await tx.events.findUnique({
-  where: { id: eventId },
-});
+        where: { id: eventId },
+      });
 
-if (!event) throw new Error("Event tidak ditemukan");
+      if (!event) throw new Error("Event tidak ditemukan");
 
-// 🔥 CEK STATUS EVENT
-const status = getEventStatus(event);
+      const status = getEventStatus(event);
+      if (status === "ENDED") {
+        throw new Error("Event sudah selesai");
+      }
 
-if (status === "ENDED") {
-  throw new Error("Event sudah selesai, tidak bisa dibeli");
-}
-
-if (event.availableSeats < qty) {
-  throw new Error("Seat tidak cukup");
-}
-
-      // 🔥 harga awal + event discount
-      let finalPrice = calculateFinalPrice(event);
-      const price = event.price;
+      if (event.availableSeats < qty) {
+        throw new Error("Seat tidak cukup");
+      }
 
       const now = new Date();
 
       // ======================
-      // 🔥 APPLY VOUCHER
+      // 🔥 BASE PRICE
+      // ======================
+      let finalPrice = calculateFinalPrice(event);
+      const price = event.price;
+
+      // ======================
+      // INIT
       // ======================
       let voucherUsed: string | null = null;
       let voucherDiscount = 0;
+
       let couponUsed: string | null = null;
       let couponDiscount = 0;
+
+      let referralUsed: string | null = null;
+
       let walletUsed = 0;
+
       // ======================
-// 🔥 APPLY REFERRAL
-// ======================
-let referralDiscount = 0;
-let referralUsed: string | null = null;
+      // 🔥 REFERRAL → JADI COUPON
+      // ======================
+      if (referralCode && referralCode.trim() !== "") {
+        const cleanCode = referralCode.trim();
 
-if (referralCode) {
-  const refUser = await tx.user.findUnique({
-    where: { referralCode },
-  });
-
-  // 🔥 valid referral
-  if (refUser && refUser.id !== userId) {
-    referralDiscount = 10000; // 💰 bebas mau berapa (contoh 10k)
-    finalPrice -= referralDiscount;
-    referralUsed = referralCode;
-  }
-}
-      if (voucherCode) {
-        const voucher = await tx.vouchers.findFirst({
-          where: {
-            code: voucherCode,
-            eventId: event.id,
-          },
+        const refUser = await tx.user.findUnique({
+          where: { referralCode: cleanCode },
         });
 
-        if (!voucher) throw new Error("Voucher tidak valid");
+        if (!refUser) throw new Error("Kode referral tidak valid");
+        if (refUser.id === userId) throw new Error("Tidak bisa pakai referral sendiri");
 
-        if (voucher.quota && voucher.used >= voucher.quota) {
-          throw new Error("Voucher habis");
-        }
-
-        if (now < voucher.startDate || now > voucher.endDate) {
-          throw new Error("Voucher tidak aktif");
-        }
-
-        // 🔥 apply voucher
-        if (voucher.discountType === "PERCENT") {
-          voucherDiscount = (finalPrice * voucher.discountValue) / 100;
-        } else {
-          voucherDiscount = voucher.discountValue;
-        }
-
-        finalPrice -= voucherDiscount;
-
-        voucherUsed = voucher.code;
-
-        // 🔥 update usage
-        await tx.vouchers.update({
-          where: { id: voucher.id },
-          data: {
-            used: { increment: 1 },
-          },
+        const trxCount = await tx.transaction.count({
+          where: { userId },
         });
-      }
 
-      if (couponCode) {
-        const coupon = await tx.coupons.findFirst({
+        if (trxCount > 0) {
+          throw new Error("Referral hanya untuk transaksi pertama");
+        }
+
+        // 🔥 ambil coupon referrer
+        const refCoupon = await tx.coupons.findFirst({
           where: {
-            userId,
-            code: String(couponCode),
+            userId: refUser.id,
             usedAt: null,
-            expiresAt: {
-              gt: now,
-            },
+            expiresAt: { gt: now },
           },
         });
 
-        if (!coupon) {
-          throw new Error("Coupon tidak valid atau sudah tidak aktif");
+        if (!refCoupon) {
+          throw new Error("Referrer tidak punya coupon aktif");
         }
 
-        // NOTE: amount <= 100 dianggap persen untuk kompatibilitas reward referral saat ini.
-        if (coupon.amount <= 100) {
-          couponDiscount = (finalPrice * coupon.amount) / 100;
+        // 🔥 apply discount
+        if (refCoupon.amount <= 100) {
+          couponDiscount = (finalPrice * refCoupon.amount) / 100;
         } else {
-          couponDiscount = coupon.amount;
+          couponDiscount = refCoupon.amount;
         }
 
         finalPrice -= couponDiscount;
-        couponUsed = coupon.code;
+        referralUsed = cleanCode;
 
+        // 🔥 tandai coupon referrer sebagai used (optional, bisa dihapus kalau mau clone saja)
         await tx.coupons.update({
-          where: {
-            id: coupon.id,
-          },
-          data: {
-            usedAt: now,
-          },
+          where: { id: refCoupon.id },
+          data: { usedAt: now },
         });
       }
 
-      // 🔥 biar ga minus
-      if (finalPrice < 0) finalPrice = 0;
+      if (voucherCode) {
+        const voucher = await tx.vouchers.findFirst({
+          where: { code: voucherCode, eventId: event.id },
+        });
 
+        if (!voucher) {
+          const coupon = await tx.coupons.findFirst({
+            where: {
+              code: voucherCode,
+              userId,
+              usedAt: null,
+              expiresAt: { gt: now },
+            },
+          });
+
+          if (!coupon) throw new Error("Voucher/Coupon tidak valid");
+
+          if (coupon.amount <= 100) {
+            couponDiscount = (finalPrice * coupon.amount) / 100;
+          } else {
+            couponDiscount = coupon.amount;
+          }
+
+          finalPrice -= couponDiscount;
+          couponUsed = coupon.code;
+
+          await tx.coupons.update({
+            where: { id: coupon.id },
+            data: { usedAt: now },
+          });
+        } else {
+          if (voucher.quota && voucher.used >= voucher.quota) {
+            throw new Error("Voucher habis");
+          }
+
+          if (now < voucher.startDate || now > voucher.endDate) {
+            throw new Error("Voucher tidak aktif");
+          }
+
+          if (voucher.discountType === "PERCENT") {
+            voucherDiscount = (finalPrice * voucher.discountValue) / 100;
+          } else {
+            voucherDiscount = voucher.discountValue;
+          }
+
+          finalPrice -= voucherDiscount;
+          voucherUsed = voucher.code;
+
+          await tx.vouchers.update({
+            where: { id: voucher.id },
+            data: { used: { increment: 1 } },
+          });
+        }
+      }
+
+      if (finalPrice < 0) finalPrice = 0;
       let totalAmount = finalPrice * qty;
 
+      // ======================
+      // WALLET
+      // ======================
       if (requestedWalletAmount > 0) {
         const wallet = await tx.wallets.findFirst({
           where: {
             userId,
-            balance: {
-              gt: 0,
-            },
+            balance: { gt: 0 },
             OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
           },
         });
 
-        if (!wallet) {
-          throw new Error("Wallet tidak tersedia atau sudah expired");
-        }
+        if (!wallet) throw new Error("Wallet tidak tersedia");
 
         walletUsed = Math.min(requestedWalletAmount, wallet.balance, totalAmount);
         totalAmount -= walletUsed;
 
         await tx.wallets.update({
-          where: {
-            id: wallet.id,
-          },
+          where: { id: wallet.id },
           data: {
-            balance: {
-              decrement: walletUsed,
-            },
+            balance: { decrement: walletUsed },
             usedAt: now,
           },
         });
@@ -783,17 +828,21 @@ if (referralCode) {
       const trx = await tx.transaction.create({
         data: {
           userId,
-          totalAmount,
+          totalAmount: Math.max(0, totalAmount),
+
           walletAmountUsed: Math.round(walletUsed),
+
           couponCodeUsed: couponUsed,
           couponDiscountUsed: Math.round(couponDiscount * qty),
+
           voucherCodeUsed: voucherUsed,
           voucherDiscountUsed: Math.round(voucherDiscount * qty),
+
           referralCodeUsed: referralUsed,
-referralDiscountUsed: Math.round(referralDiscount * qty),
+
           status: "PENDING",
           expiredAt,
-        } as any,
+        },
       });
 
       await tx.orders.create({
@@ -802,32 +851,30 @@ referralDiscountUsed: Math.round(referralDiscount * qty),
           eventId,
           quantity: qty,
 
-          price: price,
-          finalPrice: finalPrice,
-
+          price,
+          finalPrice,
           totalAmount,
+
           transactionId: trx.id,
+
           referralCodeUsed: referralUsed,
-referralDiscount: Math.round(referralDiscount),
         },
       });
 
       await tx.events.update({
         where: { id: eventId },
         data: {
-          availableSeats: {
-            decrement: qty,
-          },
+          availableSeats: { decrement: qty },
         },
       });
 
       return {
         trx,
+        finalPrice,
+        totalAmount,
         voucher: voucherUsed,
         coupon: couponUsed,
         walletUsed,
-        finalPrice,
-        totalAmount,
       };
     });
 
@@ -836,10 +883,9 @@ referralDiscount: Math.round(referralDiscount),
       transactionId: result.trx.id,
       finalPrice: result.finalPrice,
       totalAmount: result.totalAmount,
-      voucher: result.voucher, // 🔥 kirim ke frontend
+      voucher: result.voucher,
       coupon: result.coupon,
       walletUsed: result.walletUsed,
-      
     });
 
   } catch (error: any) {
@@ -1163,6 +1209,80 @@ app.get("/api/ratings/organizer", authMiddleware, async (req: AuthRequest, res) 
     res.status(500).json({ message: "Failed to fetch ratings" });
   }
 });
+app.post('/referral/validate', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const userId = req.user.id;
+    const { referralCode } = req.body;
+
+    if (!referralCode) {
+      return res.status(400).json({ message: "Referral code wajib diisi" });
+    }
+
+    const referrer = await prisma.user.findUnique({
+      where: { referralCode },
+    });
+
+    if (!referrer) {
+      return res.status(404).json({ message: "Referral tidak valid" });
+    }
+
+    if (referrer.id === userId) {
+      return res.status(400).json({ message: "Tidak bisa pakai referral sendiri" });
+    }
+
+    const alreadyUsed = await prisma.coupons.findFirst({
+      where: {
+        userId,
+        source: "REFERRAL_SIGNUP",
+      },
+    });
+
+    if (alreadyUsed) {
+      return res.status(400).json({
+        message: "Referral hanya bisa digunakan sekali",
+      });
+    }
+
+    const referrerCoupon = await prisma.coupons.findFirst({
+      where: {
+        userId: referrer.id,
+        usedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!referrerCoupon) {
+      return res.status(404).json({
+        message: "Referrer tidak punya coupon aktif",
+      });
+    }
+
+    const newCoupon = await prisma.coupons.create({
+      data: {
+        userId: userId, // 🔥 sekarang sudah pasti string
+        code: null,
+        source: "REFERRAL_SIGNUP",
+        amount: referrerCoupon.amount,
+        expiresAt: referrerCoupon.expiresAt,
+      },
+    });
+
+    return res.status(200).json({
+      message: "Referral berhasil!",
+      coupon: newCoupon,
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      message: "Gagal validasi referral",
+    });
+  }
+});
 // ==================
 // AUTH
 // ==================
@@ -1186,3 +1306,4 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
+
