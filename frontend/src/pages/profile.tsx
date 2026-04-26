@@ -194,7 +194,13 @@ export default function ProfilePage() {
       });
 
       if (token) {
-        setAuth(response.user, token);
+        setAuth(
+          {
+            ...response.user,
+            referredBy: user?.referredBy ?? null,
+          },
+          token,
+        );
       }
 
       setProfileMessage(response.message || 'Profil berhasil diperbarui.');
@@ -266,7 +272,13 @@ export default function ProfilePage() {
       const response = await updateProfilePicture(selectedProfileImage);
 
       if (token) {
-        setAuth(response.user, token);
+        setAuth(
+          {
+            ...response.user,
+            referredBy: user?.referredBy ?? null,
+          },
+          token,
+        );
       }
 
       setProfilePictureMessage(response.message || 'Foto profil berhasil diperbarui.');

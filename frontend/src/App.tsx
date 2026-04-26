@@ -35,7 +35,14 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/checkout" element={<CheckoutPage />} />
+      <Route
+        path="/checkout"
+        element={
+          <RequireAuth allowedRoles={["CUSTOMER"]}>
+            <CheckoutPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/createevent" element={<CreateEvent />} />
       <Route path="/transactions/:id" element={<PaymentPage />} />
       <Route path="/verify" element={<AdminTransactionPage />} />

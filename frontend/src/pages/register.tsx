@@ -27,18 +27,14 @@ type RegisterInput = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const emailInputRef = React.useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    emailInputRef.current?.focus();
-  }, []);
-
   const {
     register,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -46,6 +42,10 @@ export default function RegisterPage() {
       role: 'CUSTOMER',
     },
   });
+
+  React.useEffect(() => {
+    setFocus('email');
+  }, [setFocus]);
 
   const onSubmit = async (data: RegisterInput) => {
     setLoading(true);
@@ -82,7 +82,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 z-0">
-        <div className="w-full h-full bg-gradient-to-br from-blue-300/40 via-white/60 to-yellow-200/60 blur-2xl" />
+        <div className="w-full h-full bg-linear-to-br from-blue-300/40 via-white/60 to-yellow-200/60 blur-2xl" />
       </div>
 
       <div className="w-full max-w-md z-10 px-4 py-10">
@@ -130,7 +130,6 @@ export default function RegisterPage() {
             <div>
               <input
                 type="email"
-                ref={emailInputRef}
                 className={`w-full rounded-lg border focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition text-gray-700 px-4 py-3 bg-gray-50 text-base ${errors.email ? 'border-red-400' : 'border-gray-300'}`}
                 {...register('email')}
                 disabled={loading}
