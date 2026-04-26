@@ -3,10 +3,12 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cors from 'cors';
 import multer from 'multer';
 import cron from 'node-cron';
+import { RoleType } from '@prisma/client';
 import authRoutes from './src/routes/authRoutes';
 import { AppError } from './src/errors/app.error';
 import { prisma } from './src/configs/prisma';
 import { authMiddleware } from './src/middlewares/authMiddleware';
+import { roleGuard } from './src/middlewares/roleGuard';
 import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
 import { AuthRequest } from './src/types/auth';
 
@@ -113,9 +115,13 @@ app.get('/events/:id', async (req, res) => {
 // ==================
 // CREATE EVENT
 // ==================
-app.post('/events', async (req, res) => {
+app.post('/events', authMiddleware, roleGuard([RoleType.EVENT_ORGANIZER]), async (req: AuthRequest, res) => {
   try {
-    const { name, price, totalSeats, eventOrganizerId, images } = req.body;
+    const { name, price, totalSeats, images } = req.body;
+
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
 
     const newEvent = await prisma.events.create({
       data: {
@@ -123,7 +129,7 @@ app.post('/events', async (req, res) => {
         price: Number(price),
         totalSeats: Number(totalSeats),
         availableSeats: Number(totalSeats),
-        eventOrganizerId,
+        eventOrganizerId: req.user.id,
         event_images: {
           create:
             images?.map((url: string) => ({ url })) || [],

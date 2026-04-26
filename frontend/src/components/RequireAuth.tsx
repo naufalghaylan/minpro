@@ -3,11 +3,19 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 import { useAuthStore } from '../store/auth';
 
+type UserRole = 'CUSTOMER' | 'EVENT_ORGANIZER';
+
 type RequireAuthProps = {
   children: ReactNode;
+  allowedRoles?: UserRole[];
+  redirectTo?: string;
 };
 
-export default function RequireAuth({ children }: RequireAuthProps) {
+export default function RequireAuth({
+  children,
+  allowedRoles,
+  redirectTo = '/',
+}: RequireAuthProps) {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.token);
@@ -27,6 +35,10 @@ export default function RequireAuth({ children }: RequireAuthProps) {
 
   if (!user || !token) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (allowedRoles?.length && !allowedRoles.includes(user.role)) {
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <>{children}</>;

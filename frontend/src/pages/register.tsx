@@ -27,9 +27,14 @@ type RegisterInput = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const emailInputRef = React.useRef<HTMLInputElement | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    emailInputRef.current?.focus();
+  }, []);
 
   const {
     register,
@@ -115,6 +120,7 @@ export default function RegisterPage() {
             <div>
               <input
                 type="email"
+                ref={emailInputRef}
                 className={`w-full rounded-lg border focus:ring-2 focus:ring-blue-400 focus:border-blue-400 outline-none transition text-gray-700 px-4 py-3 bg-gray-50 text-base ${errors.email ? 'border-red-400' : 'border-gray-300'}`}
                 {...register('email')}
                 disabled={loading}

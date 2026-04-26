@@ -14,13 +14,27 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/order/:eventId" element={<OrderPage />} />
+      <Route
+        path="/order/:eventId"
+        element={
+          <RequireAuth allowedRoles={["CUSTOMER"]}>
+            <OrderPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/events" element={<EventsPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/checkout" element={<CheckoutPage />} />
+      <Route
+        path="/checkout"
+        element={
+          <RequireAuth allowedRoles={["CUSTOMER"]}>
+            <CheckoutPage />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/profile"
         element={

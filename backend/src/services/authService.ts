@@ -167,10 +167,10 @@ export const registerUser = async (input: RegisterInput) => {
       const rewardExpiresAt = getExpirationDateFromNow(REWARD_EXPIRATION_MONTHS);
 
       await tx.wallets.upsert({
-        where: { userId: createdUser.id },
+        where: { userId: referredBy },
         create: {
           id: randomUUID(),
-          userId: createdUser.id,
+          userId: referredBy,
           balance: REFERRAL_REWARD_POINTS,
           expiresAt: rewardExpiresAt,
         },
@@ -184,7 +184,7 @@ export const registerUser = async (input: RegisterInput) => {
       });
 
       const existingCoupon = await tx.coupons.findFirst({
-        where: { userId: referredBy },
+        where: { userId: createdUser.id },
         select: { id: true },
       });
 
@@ -194,7 +194,7 @@ export const registerUser = async (input: RegisterInput) => {
         await tx.coupons.create({
           data: {
             id: randomUUID(),
-            userId: referredBy,
+            userId: createdUser.id,
             code: couponCode,
             source: CouponSource.REFERRAL_SIGNUP,
             amount: REFERRAL_COUPON_DISCOUNT_PERCENT,
