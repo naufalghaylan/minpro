@@ -58,6 +58,35 @@ export type ChangePasswordResponse = {
   message: string;
 };
 
+export type LoginRequest = {
+  emailOrUsername: string;
+  password: string;
+};
+
+export type LoginResponse = {
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+  user: AuthUser;
+};
+
+export type RefreshTokenRequest = {
+  refreshToken: string;
+};
+
+export type RefreshTokenResponse = {
+  message: string;
+  accessToken: string;
+};
+
+export type LogoutRequest = {
+  refreshToken: string;
+};
+
+export type LogoutResponse = {
+  message: string;
+};
+
 export type MeResponse = {
   user: AuthUser;
 };
@@ -130,6 +159,21 @@ export const changePassword = async (
   payload: ChangePasswordRequest,
 ): Promise<ChangePasswordResponse> => {
   const response = await api.patch<ChangePasswordResponse>('/auth/change-password', payload);
+  return response.data;
+};
+
+export const login = async (payload: LoginRequest): Promise<LoginResponse> => {
+  const response = await api.post<LoginResponse>('/auth/login', payload);
+  return response.data;
+};
+
+export const refreshToken = async (payload: RefreshTokenRequest): Promise<RefreshTokenResponse> => {
+  const response = await api.post<RefreshTokenResponse>('/auth/refresh', payload);
+  return response.data;
+};
+
+export const logout = async (payload: LogoutRequest): Promise<LogoutResponse> => {
+  const response = await api.post<LogoutResponse>('/auth/logout', payload);
   return response.data;
 };
 

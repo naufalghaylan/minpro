@@ -25,7 +25,8 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
       role: decoded.role,
     };
     next();
-  } catch {
-    return res.status(401).json({ message: 'Invalid or expired token.' });
-  }
+  } catch (err: any) {
+  console.log("JWT ERROR:", err.message);
+  return res.status(401).json({ message: 'Invalid or expired token.' });
+}
 };

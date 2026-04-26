@@ -4,11 +4,19 @@ import OrderPage from "./pages/OrderPage/OrderPage";
 import EventsPage from "./pages/EventsPage/events";
 import LoginPage from "./pages/login";
 import RegisterPage from "./pages/register";
-import CheckoutPage from "./pages/checkout/checkout";
+import CheckoutPage from "./pages/transactionpage/TransactionPage";
+import CreateEvent from "./pages/CreateEvents/CreateEvents";
 import ForgotPasswordPage from "./pages/forgot-password";
 import ResetPasswordPage from "./pages/reset-password";
 import ProfilePage from "./pages/profile";
 import RequireAuth from "./components/RequireAuth";
+import RequireRole from "./components/RequireRole";
+import PaymentPage from "./pages/transaksi/TransaksiPage";
+import AdminTransactionPage from "./pages/AdminTransactionPage/AdminTransactionPage";
+import VoucherPage from "./pages/VoucherPage/VoucherPage";
+import MyTicketsPage from "./pages/mytickets/mytickets";
+import TicketDetailPage from "./pages/TicketDetailPage/TicketDetailPage";
+import OrganizerDashboardPage from "./pages/OrganizerDashboardPage/OrganizerDashboardPage";
 
 function App() {
   return (
@@ -27,14 +35,24 @@ function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/checkout" element={<CheckoutPage />} />
+      <Route path="/createevent" element={<CreateEvent />} />
+      <Route path="/transactions/:id" element={<PaymentPage />} />
+      <Route path="/verify" element={<AdminTransactionPage />} />
       <Route
-        path="/checkout"
+        path="/organizer/dashboard"
         element={
-          <RequireAuth allowedRoles={["CUSTOMER"]}>
-            <CheckoutPage />
+          <RequireAuth>
+            <RequireRole allow={["EVENT_ORGANIZER"]}>
+              <OrganizerDashboardPage />
+            </RequireRole>
           </RequireAuth>
         }
       />
+      <Route path="/vouchers" element={<VoucherPage />} />
+      <Route path="/myticket" element={<MyTicketsPage />} />
+      <Route path="/ticketdetail/:id" element={<TicketDetailPage />} />
+
       <Route
         path="/profile"
         element={
