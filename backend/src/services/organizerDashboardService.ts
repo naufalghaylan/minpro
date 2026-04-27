@@ -9,6 +9,12 @@ import type {
   UpdateEventInput,
 } from '../validations/organizerDashboardValidation';
 
+// Helper function to convert date to WIB (UTC+7)
+const convertToWIB = (date: Date): Date => {
+  const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+  return new Date(utc + (3600000 * 7));
+};
+
 const REWARD_EXPIRATION_MONTHS = 3;
 
 const getRewardExpirationDate = () => {
@@ -159,13 +165,13 @@ export const updateOrganizerEvent = async (
           ? undefined
           : payload.discountStart === null
             ? null
-            : new Date(payload.discountStart),
+            : convertToWIB(new Date(payload.discountStart)),
       discountEnd:
         payload.discountEnd === undefined
           ? undefined
           : payload.discountEnd === null
             ? null
-            : new Date(payload.discountEnd),
+            : convertToWIB(new Date(payload.discountEnd)),
     },
     include: {
       event_images: true,

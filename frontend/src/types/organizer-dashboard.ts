@@ -64,6 +64,7 @@ export type OrganizerTransactionItem = {
   paymentProofUrl?: string | null;
   decisionNote?: string | null;
   decisionAt?: string | null;
+  paidAt?: string | null;
   createdAt?: string;
   user: {
     id: string;

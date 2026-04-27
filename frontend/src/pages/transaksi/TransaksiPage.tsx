@@ -108,7 +108,7 @@ export default function TransactionPage() {
   const walletUsed = Number(order?.walletAmountUsed ?? 0);
 
   // ✅ PENTING: TOTAL LANGSUNG DARI BACKEND
-const total = Number(order?.totalAmount ?? 0);
+  const total = Number(order?.totalAmount ?? 0);
 
   const isDiscount = finalPrice < price;
 
@@ -198,142 +198,247 @@ const total = Number(order?.totalAmount ?? 0);
   };
 
   if (fetchLoading) {
-    return <p className="text-center mt-10">Loading...</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+      </div>
+    );
   }
 
   if (error && !event) {
-    return <p className="text-center mt-10 text-red-500">{error}</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <p className="text-red-500 text-lg font-semibold">{error}</p>
+          <button
+            onClick={() => navigate("/")}
+            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Kembali ke Beranda
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <>
       <Header />
 
-      <div className="max-w-4xl mx-auto mt-10 p-6 bg-white shadow-xl rounded-2xl">
-        <div className="grid md:grid-cols-2 gap-6">
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 py-12 px-4">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-3xl font-bold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+            Detail Transaksi
+          </h1>
 
-          {/* LEFT */}
-          <div>
-            <img
-              src={image}
-              className="w-full h-64 object-cover rounded-xl shadow"
-            />
+          <div className="bg-white/80 backdrop-blur-xl shadow-2xl rounded-3xl overflow-hidden border border-white/20">
+            <div className="grid md:grid-cols-2 gap-0">
 
-            <h2 className="text-xl font-bold mt-3">{event?.name}</h2>
+              {/* LEFT */}
+              <div className="p-8 md:p-10">
+                <div className="relative rounded-2xl overflow-hidden shadow-lg mb-6">
+                  <img
+                    src={image}
+                    className="w-full h-72 object-cover transform hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
 
-            {isDiscount && (
-              <p className="text-gray-400 line-through text-sm">
-                Rp {price.toLocaleString()}
-              </p>
-            )}
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">{event?.name}</h2>
 
-            <p className="text-xl font-bold text-blue-600">
-              Rp {finalPrice.toLocaleString()}
-            </p>
+                <div className="flex items-baseline gap-3 mb-6">
+                  {event?.pricingType === "FREE" ? (
+                    <p className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-500">
+                      GRATIS
+                    </p>
+                  ) : (
+                    <>
+                      {isDiscount && (
+                        <p className="text-gray-400 line-through text-lg">
+                          Rp {price.toLocaleString()}
+                        </p>
+                      )}
 
-            {/* 🔥 BREAKDOWN */}
-            <div className="mt-4 text-sm space-y-2 border-t pt-3">
+                      <p className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                        Rp {finalPrice.toLocaleString()}
+                      </p>
+                    </>
+                  )}
+                </div>
 
-              <div className="flex justify-between">
-                <span>Harga x {quantity}</span>
-                <span>Rp {subtotal.toLocaleString()}</span>
+                {/* 🔥 BREAKDOWN */}
+                <div className="bg-gray-50 rounded-2xl p-6 space-y-3 text-sm">
+
+                  <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+                    <span className="text-gray-600 font-medium">Harga x {quantity}</span>
+                    <span className="font-semibold text-gray-800">Rp {subtotal.toLocaleString()}</span>
+                  </div>
+
+                  {voucherDiscount > 0 && (
+                    <div className="flex justify-between items-center text-green-600">
+                      <span className="font-medium">💰 Voucher</span>
+                      <span className="font-semibold">- Rp {voucherDiscount.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between items-center text-green-600">
+                      <span className="font-medium">🎟️ Coupon</span>
+                      <span className="font-semibold">- Rp {couponDiscount.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {referralDiscount > 0 && (
+                    <div className="flex justify-between items-center text-green-600">
+                      <span className="font-medium">👥 Referral</span>
+                      <span className="font-semibold">- Rp {referralDiscount.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {walletUsed > 0 && (
+                    <div className="flex justify-between items-center text-green-600">
+                      <span className="font-medium">💳 Wallet</span>
+                      <span className="font-semibold">- Rp {walletUsed.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {/* ✅ TOTAL FIX */}
+                  <div className="flex justify-between items-center font-bold text-xl pt-4 mt-2 border-t-2 border-gray-300">
+                    <span className="text-gray-800">Total</span>
+                    {event?.pricingType === "FREE" ? (
+                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-500">
+                        GRATIS
+                      </span>
+                    ) : (
+                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                        Rp {total.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+
+                </div>
+
+                {status === "PENDING" && (
+                  <div className="mt-6 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl">
+                    <p className="font-bold text-yellow-800 text-sm">⏰ HARAP BAYAR SEBELUM :</p>
+                    <p className="text-2xl font-bold text-yellow-700 mt-1">{timeLeft}</p>
+                  </div>
+                )}
+
+                {statusMessage && (
+                  <div className={`mt-6 p-4 rounded-xl border ${
+                    status === "DONE"
+                      ? "bg-green-50 border-green-200"
+                      : status === "PAID"
+                      ? "bg-blue-50 border-blue-200"
+                      : "bg-gray-100 border-gray-300"
+                  }`}>
+                    <p className={`font-medium ${
+                      status === "DONE"
+                        ? "text-green-700"
+                        : status === "PAID"
+                        ? "text-blue-700"
+                        : "text-gray-700"
+                    }`}>
+                      {statusMessage}
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {voucherDiscount > 0 && (
-                <div className="flex justify-between text-red-500">
-                  <span>Voucher</span>
-                  <span>- Rp {voucherDiscount.toLocaleString()}</span>
+              {/* RIGHT */}
+              {!disableForm && (
+                <div className="p-8 md:p-10 bg-gradient-to-b from-gray-50 to-white border-l border-gray-200">
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                        Upload Bukti Pembayaran
+                      </h2>
+                      <p className="text-gray-600 text-sm">
+                        Silakan upload bukti transfer untuk melanjutkan transaksi
+                      </p>
+                    </div>
+
+                    {error && (
+                      <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <p className="text-red-600 text-sm font-medium">{error}</p>
+                      </div>
+                    )}
+
+                    <label className="flex flex-col items-center justify-center w-full p-8 border-2 border-dashed border-blue-300 rounded-2xl cursor-pointer bg-blue-50 hover:bg-blue-100 transition-all duration-300 group">
+                      <div className="text-center">
+                        <div className="mb-4 text-4xl">📷</div>
+                        <span className="text-sm text-gray-600 font-medium mb-2 block">
+                          Klik untuk upload bukti pembayaran
+                        </span>
+                        <span className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold text-sm group-hover:from-blue-700 group-hover:to-indigo-700 transition-all duration-300">
+                          Browse File
+                        </span>
+                      </div>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {preview && (
+                      <div className="relative rounded-2xl overflow-hidden shadow-lg">
+                        <img
+                          src={preview}
+                          className="h-48 w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageFile(null);
+                            setPreview("");
+                          }}
+                          className="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600 transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full py-4 rounded-xl text-white font-bold text-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                    >
+                      {loading ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          Processing...
+                        </span>
+                      ) : (
+                        "Submit Transaksi"
+                      )}
+                    </button>
+                  </form>
                 </div>
               )}
 
-              {couponDiscount > 0 && (
-                <div className="flex justify-between text-red-500">
-                  <span>Coupon</span>
-                  <span>- Rp {couponDiscount.toLocaleString()}</span>
+              {disableForm && (
+                <div className="p-8 md:p-10 bg-gradient-to-b from-gray-50 to-white border-l border-gray-200 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">
+                      {status === "DONE" ? "✅" : status === "PAID" ? "⏳" : "🔒"}
+                    </div>
+                    <p className="text-gray-600 font-medium">
+                      {status === "DONE"
+                        ? "Transaksi selesai"
+                        : status === "PAID"
+                        ? "Menunggu approval"
+                        : "Transaksi ditutup"}
+                    </p>
+                  </div>
                 </div>
               )}
-
-              {referralDiscount > 0 && (
-                <div className="flex justify-between text-red-500">
-                  <span>Referral</span>
-                  <span>- Rp {referralDiscount.toLocaleString()}</span>
-                </div>
-              )}
-
-              {walletUsed > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>Wallet</span>
-                  <span>- Rp {walletUsed.toLocaleString()}</span>
-                </div>
-              )}
-
-              {/* ✅ TOTAL FIX */}
-              <div className="flex justify-between font-bold text-lg border-t pt-2 mt-2">
-                <span>Total</span>
-                <span className="text-blue-600">
-                  Rp {total.toLocaleString()}
-                </span>
-              </div>
 
             </div>
-
-            {status === "PENDING" && (
-              <div className="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded">
-                <p className="font-bold">HARAP BAYAR SEBELUM :</p>
-                <p>{timeLeft}</p>
-              </div>
-            )}
-
-            {statusMessage && (
-              <div className="mt-4 p-3 bg-gray-200 rounded">
-                {statusMessage}
-              </div>
-            )}
           </div>
-
-          {/* RIGHT */}
-          {!disableForm && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="text-xl font-bold">
-                Upload Bukti Pembayaran
-              </h2>
-
-              {error && <p className="text-red-500">{error}</p>}
-
-              <label className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
-                <span className="mb-3 text-sm text-gray-500">
-                  Klik untuk upload bukti pembayaran
-                </span>
-
-                <span className="px-4 py-2 bg-black text-white rounded-md">
-                  Browse File
-                </span>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-              </label>
-
-              {preview && (
-                <img
-                  src={preview}
-                  className="h-40 w-full object-cover rounded-lg"
-                />
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-500 to-indigo-600 hover:opacity-90 disabled:opacity-50"
-              >
-                {loading ? "Processing..." : "Submit Transaksi"}
-              </button>
-            </form>
-          )}
-
         </div>
       </div>
     </>

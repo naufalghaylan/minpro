@@ -42,46 +42,77 @@ export default function TicketDetailPage() {
     });
   };
 
-  if (loading) return <div className="p-4 text-center">Loading...</div>;
-  if (!event) return <div className="p-4 text-center">Event tidak ditemukan</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <p className="text-gray-600 text-lg font-semibold">Event tidak ditemukan</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
       <Header />
 
-      <div className="p-4 max-w-md mx-auto">
-        <h1 className="text-xl font-bold mb-4">🎟️ Ticket Detail</h1>
+      <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 py-12 px-4">
+        <div className="max-w-md mx-auto">
+          <h1 className="text-3xl font-bold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+            🎟️ Ticket Detail
+          </h1>
 
-        {/* EVENT INFO */}
-        <div className="bg-white p-4 rounded shadow mb-4">
-          <h2 className="font-bold text-lg">{event.name}</h2>
-          <p className="text-gray-500">
-            📍 {event.location}, {event.city}
-          </p>
+          {/* EVENT INFO */}
+          <div className="bg-white/80 backdrop-blur-xl shadow-2xl rounded-3xl overflow-hidden border border-white/20 mb-6">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6">
+              <h2 className="text-2xl font-bold text-white">{event.name}</h2>
+            </div>
 
-          <div className="mt-2 text-sm space-y-1">
-            {/* 🔥 FIX DISINI */}
-            <p>📅 {formatDate(event.eventDate)}</p>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-3 text-gray-700">
+                <span className="text-2xl">📍</span>
+                <span className="font-medium">{event.location}, {event.city}</span>
+              </div>
 
-            <p>
-              ⏰ {event.startTime || "-"} - {event.endTime || "-"}
-            </p>
+              <div className="flex items-center gap-3 text-gray-700">
+                <span className="text-2xl">📅</span>
+                <span className="font-medium">{formatDate(event.eventDate)}</span>
+              </div>
+
+              <div className="flex items-center gap-3 text-gray-700">
+                <span className="text-2xl">⏰</span>
+                <span className="font-medium">{event.startTime || "-"} - {event.endTime || "-"}</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* QR SECTION */}
-        <div className="bg-white p-6 rounded shadow mb-4 text-center">
-          <p className="mb-4 font-semibold text-gray-700">
-            QR Code Tiket
-          </p>
+          {/* QR SECTION */}
+          <div className="bg-white/80 backdrop-blur-xl shadow-2xl rounded-3xl overflow-hidden border border-white/20 p-8 text-center">
+            <div className="mb-6">
+              <p className="text-xl font-bold text-gray-800 mb-2">QR Code Tiket</p>
+              <p className="text-gray-600 text-sm">
+                Tunjukkan QR Code ini kepada petugas di lokasi
+              </p>
+            </div>
 
-          <div className="bg-white p-3 inline-block border border-gray-100 rounded-lg shadow-inner">
-            <QRCodeComponent value={`ticket-${id}`} size={160} />
+            <div className="bg-white p-6 inline-block border-2 border-blue-200 rounded-2xl shadow-xl">
+              <QRCodeComponent value={`ticket-${id}`} size={180} />
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-xl">
+              <p className="text-blue-800 text-sm font-medium">
+                💡 Simpan tiket ini untuk keperluan check-in di lokasi event
+              </p>
+            </div>
           </div>
-
-          <p className="text-xs text-gray-500 mt-4">
-            Tunjukkan QR Code ini kepada petugas di lokasi
-          </p>
         </div>
       </div>
     </>

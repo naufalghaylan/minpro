@@ -87,20 +87,20 @@ export default function TransactionPage() {
       <div className="flex h-[calc(100vh-80px)]">
 
         {/* 🔥 LEFT (STATIC IMAGE) */}
-        <div className="w-1/3 h-screen sticky top-0 relative overflow-hidden">
+        <div className="w-1/3 h-screen sticky top-0 relative overflow-hidden hidden md:block">
           <img
             src="fototransaksi.jpg"
-            className="w-full h-full object-cover scale-110"
+            className="w-full h-full object-cover transform scale-105"
           />
 
-          <div className="absolute inset-0 bg-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 to-black/80" />
 
           <div className="absolute inset-0 flex items-center justify-center text-white text-center px-6">
             <div>
-              <h2 className="text-3xl font-bold">
+              <h2 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-300 to-indigo-300">
                 Riwayat Transaksi
               </h2>
-              <p className="text-gray-300 mt-2">
+              <p className="text-gray-300 text-lg">
                 Semua pembelian tiket kamu ada di sini
               </p>
             </div>
@@ -108,17 +108,19 @@ export default function TransactionPage() {
         </div>
 
         {/* 🔥 RIGHT */}
-        <div className="w-2/3 overflow-y-auto p-6 bg-gray-50">
+        <div className="w-full md:w-2/3 overflow-y-auto p-6 bg-gradient-to-b from-gray-100 to-gray-200">
 
-          <h1 className="text-2xl font-bold mb-6">
+          <h1 className="text-3xl font-bold mb-8 text-gray-800">
             🧾 Daftar Transaksi
           </h1>
 
           {data.length === 0 && (
-            <p className="text-gray-500">Belum ada transaksi</p>
+            <div className="bg-white/80 backdrop-blur-xl rounded-3xl p-12 text-center shadow-xl">
+              <p className="text-gray-500 text-lg">Belum ada transaksi</p>
+            </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-6">
             {data.map((trx) => {
               const image = trx.order?.event?.event_images?.[0]?.url
                 ? `${BASE_URL}/uploads/${trx.order.event.event_images[0].url}`
@@ -131,12 +133,12 @@ export default function TransactionPage() {
                 <div
                   key={trx.id}
                   onClick={() => navigate(`/transactions/${trx.id}`)}
-                  className="flex gap-4 bg-white p-4 rounded-2xl shadow hover:shadow-xl transition cursor-pointer"
+                  className="flex gap-6 bg-white/80 backdrop-blur-xl p-6 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer border border-white/20"
                 >
                   {/* IMAGE */}
                   <img
                     src={image}
-                    className="w-28 h-28 object-cover rounded-xl"
+                    className="w-32 h-32 object-cover rounded-2xl shadow-md"
                   />
 
                   {/* CONTENT */}
@@ -144,18 +146,18 @@ export default function TransactionPage() {
 
                     {/* TOP */}
                     <div>
-                      <h2 className="text-lg font-semibold">
+                      <h2 className="text-xl font-bold text-gray-800 mb-1">
                         {trx.order?.event?.name}
                       </h2>
 
-                      <p className="text-sm text-gray-500">
-                        Qty: {trx.order?.quantity}
+                      <p className="text-sm text-gray-600">
+                        🎫 Qty: {trx.order?.quantity}
                       </p>
 
                       {/* 🔥 COUNTDOWN */}
                       {trx.status === "PENDING" && (
                         <p
-                          className={`mt-1 font-semibold ${
+                          className={`mt-2 font-semibold text-sm ${
                             isDanger
                               ? "text-red-500 animate-pulse"
                               : "text-orange-500"
@@ -167,14 +169,14 @@ export default function TransactionPage() {
                     </div>
 
                     {/* BOTTOM */}
-                    <div className="flex justify-between items-end mt-3">
-                      <p className="text-blue-600 font-bold text-lg">
+                    <div className="flex justify-between items-end mt-4">
+                      <p className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
                         Rp {trx.totalAmount.toLocaleString()}
                       </p>
 
                       {/* STATUS BADGE */}
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyle(
+                        className={`px-4 py-2 rounded-full text-sm font-bold ${getStatusStyle(
                           trx.status
                         )}`}
                       >
