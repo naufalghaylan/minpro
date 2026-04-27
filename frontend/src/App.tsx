@@ -54,9 +54,28 @@ function App() {
               </RequireAuth>
             }
           />
-          <Route path="/createevent" element={<CreateEvent />} />
+          <Route
+            path="/createevent"
+            element={
+              <RequireAuth>
+                <RequireRole allow={["EVENT_ORGANIZER"]}>
+                  <CreateEvent />
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
           <Route path="/transactions/:id" element={<PaymentPage />} />
           <Route path="/verify" element={<AdminTransactionPage />} />
+          <Route
+            path="/organizer"
+            element={
+              <RequireAuth>
+                <RequireRole allow={["EVENT_ORGANIZER"]}>
+                  <OrganizerDashboardPage />
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
           <Route
             path="/organizer/dashboard"
             element={
@@ -67,7 +86,16 @@ function App() {
               </RequireAuth>
             }
           />
-          <Route path="/vouchers" element={<VoucherPage />} />
+          <Route
+            path="/vouchers"
+            element={
+              <RequireAuth>
+                <RequireRole allow={["EVENT_ORGANIZER"]}>
+                  <VoucherPage />
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
           <Route path="/myticket" element={<MyTicketsPage />} />
           <Route path="/ticketdetail/:id" element={<TicketDetailPage />} />
 

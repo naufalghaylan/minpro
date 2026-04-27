@@ -258,6 +258,8 @@ export default function OrganizerDashboardPage() {
   const [selectedAttendeeEventId, setSelectedAttendeeEventId] = useState('');
   const [attendees, setAttendees] = useState<OrganizerAttendeeItem[]>([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
+
+  const [selectedStatsEventId, setSelectedStatsEventId] = useState('');
   // 🔥 RATING STATE
 const [ratings, setRatings] = useState<RatingItem[]>([]);
 const [ratingsLoading, setRatingsLoading] = useState(false);
@@ -493,10 +495,12 @@ const [avgRating, setAvgRating] = useState(0);
       groupBy,
       year,
       month,
+      eventId,
     }: {
       groupBy: OrganizerStatisticsGroupBy;
       year?: number;
       month?: number;
+      eventId?: string;
     }) => {
     try {
       setStatisticsLoading(true);
@@ -504,6 +508,7 @@ const [avgRating, setAvgRating] = useState(0);
         groupBy,
         year,
         month,
+        eventId,
       });
       setStatistics(data);
     } catch (error) {
@@ -1247,6 +1252,24 @@ const fetchRatings = useCallback(async () => {
                   />
                 </label>
 
+                <label className="text-sm text-slate-600">
+                  Event
+                  <select
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+                    value={selectedStatsEventId}
+                    onChange={(event) => {
+                      setSelectedStatsEventId(event.target.value);
+                    }}
+                  >
+                    <option value="">Semua Event</option>
+                    {events.map((event) => (
+                      <option key={event.id} value={event.id}>
+                        {event.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1254,6 +1277,7 @@ const fetchRatings = useCallback(async () => {
                       groupBy: statsQuery.groupBy,
                       year: statsQuery.groupBy === 'year' ? undefined : statsQuery.year,
                       month: statsQuery.groupBy === 'day' ? statsQuery.month : undefined,
+                      eventId: selectedStatsEventId || undefined,
                     });
                   }}
                   className="h-10.5 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white hover:bg-sky-700"

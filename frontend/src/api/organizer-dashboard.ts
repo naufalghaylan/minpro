@@ -33,6 +33,7 @@ export type OrganizerStatisticsQuery = {
   groupBy?: OrganizerStatisticsGroupBy;
   year?: number;
   month?: number;
+  eventId?: string;
 };
 
 export const getOrganizerOverview = async (): Promise<OrganizerDashboardOverview> => {
