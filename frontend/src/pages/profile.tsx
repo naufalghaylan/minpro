@@ -114,6 +114,7 @@ export default function ProfilePage() {
   const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null);
   const [selectedProfileImagePreview, setSelectedProfileImagePreview] = useState<string | null>(null);
   const [isChangeProfilePictureMode, setIsChangeProfilePictureMode] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(false);
   const profileImageInputRef = useRef<HTMLInputElement | null>(null);
 
   const profileDefaults = useMemo<ProfileInput>(
@@ -148,6 +149,14 @@ export default function ProfilePage() {
   useEffect(() => {
     resetProfile(profileDefaults);
   }, [profileDefaults, resetProfile]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setIsPageVisible(true);
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     if (!selectedProfileImage) {
@@ -354,6 +363,10 @@ export default function ProfilePage() {
     }
   };
 
+  const revealSectionClass = isPageVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0';
+  const walletSkeletonRows = [0, 1];
+  const couponSkeletonRows = [0, 1, 2];
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Blur gradient background ala tiket.com */}
@@ -361,7 +374,9 @@ export default function ProfilePage() {
         <div className="w-full h-full bg-linear-to-br from-blue-300/40 via-white/60 to-yellow-200/60 blur-2xl" />
       </div>
       <div className="w-full max-w-6xl z-10 mx-auto px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm sm:p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={`mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-all duration-700 delay-75 sm:p-6 sm:flex-row sm:items-center sm:justify-between ${revealSectionClass}`}
+        >
           <div className="flex-1 min-w-0">
             <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Account Center</p>
             <h1 className="mt-1 text-2xl sm:text-3xl font-bold text-slate-900">Profil Saya</h1>
@@ -372,7 +387,7 @@ export default function ProfilePage() {
 
           <Link
             to="/"
-            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 shrink-0"
+            className="inline-flex w-full sm:w-auto items-center justify-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm shrink-0"
           >
             Kembali ke beranda
           </Link>
@@ -380,7 +395,9 @@ export default function ProfilePage() {
 
         <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
           <aside className="space-y-4 sm:space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <section
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-150 hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+            >
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <div className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 overflow-hidden rounded-full bg-linear-to-br from-slate-100 via-blue-50 to-amber-100 p-1 shadow-inner">
                   {displayProfileImage ? (
@@ -440,7 +457,7 @@ export default function ProfilePage() {
                             type="button"
                             onClick={handleProfileImageUpload}
                             disabled={savingProfilePicture}
-                            className="inline-flex flex-1 items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                            className="inline-flex flex-1 items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-blue-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                           >
                             {savingProfilePicture ? 'Mengunggah...' : 'Upload foto profil'}
                           </button>
@@ -448,7 +465,7 @@ export default function ProfilePage() {
                             type="button"
                             onClick={clearSelectedProfileImage}
                             disabled={savingProfilePicture}
-                            className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                           >
                             Batal
                           </button>
@@ -468,7 +485,7 @@ export default function ProfilePage() {
                         type="button"
                         onClick={() => setIsChangeProfilePictureMode(true)}
                         disabled={savingProfilePicture}
-                        className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                        className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-blue-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                       >
                         Ganti Foto Profil
                       </button>
@@ -510,7 +527,7 @@ export default function ProfilePage() {
                                 type="button"
                                 onClick={handleProfileImageUpload}
                                 disabled={savingProfilePicture}
-                                className="inline-flex flex-1 items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                                className="inline-flex flex-1 items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-blue-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                               >
                                 {savingProfilePicture ? 'Mengunggah...' : 'Ganti Foto'}
                               </button>
@@ -518,7 +535,7 @@ export default function ProfilePage() {
                                 type="button"
                                 onClick={clearSelectedProfileImage}
                                 disabled={savingProfilePicture}
-                                className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-slate-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                               >
                                 Batal
                               </button>
@@ -548,7 +565,9 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <section
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-200 hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+            >
               <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Reset Akses</p>
               <h3 className="mt-2 text-base sm:text-lg font-bold text-slate-900">Lupa password?</h3>
               <p className="mt-2 text-xs sm:text-sm text-slate-600">
@@ -556,7 +575,7 @@ export default function ProfilePage() {
               </p>
               <Link
                 to="/forgot-password"
-                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md"
               >
                 Buka reset password
               </Link>
@@ -564,7 +583,9 @@ export default function ProfilePage() {
           </aside>
 
           <main className="space-y-4 sm:space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <section
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-300 hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+            >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Edit Profil</p>
                 <h2 className="mt-2 text-xl sm:text-2xl font-bold text-slate-900">Informasi Akun</h2>
@@ -604,7 +625,7 @@ export default function ProfilePage() {
 
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 sm:px-5 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                    className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 sm:px-5 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-blue-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                     disabled={savingProfile}
                   >
                     {savingProfile ? 'Menyimpan...' : 'Simpan perubahan'}
@@ -613,7 +634,9 @@ export default function ProfilePage() {
               </form>
             </section>
 
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <section
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-[360ms] hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+            >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Keamanan</p>
                 <h2 className="mt-2 text-xl sm:text-2xl font-bold text-slate-900">Ubah Password</h2>
@@ -676,7 +699,7 @@ export default function ProfilePage() {
 
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 sm:px-5 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 sm:px-5 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                     disabled={savingPassword}
                   >
                     {savingPassword ? 'Menyimpan...' : 'Ubah password'}
@@ -686,7 +709,9 @@ export default function ProfilePage() {
             </section>
 
             {/* Wallet Section */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <section
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-[440ms] hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+            >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Wallet</p>
                 <h2 className="mt-2 text-xl sm:text-2xl font-bold text-slate-900">Saldo Wallet</h2>
@@ -696,8 +721,24 @@ export default function ProfilePage() {
               </div>
 
               {walletAndCouponsLoading ? (
-                <div className="flex justify-center py-6 sm:py-8">
-                  <div className="h-6 w-48 animate-pulse rounded-lg bg-slate-200" />
+                <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="animate-pulse">
+                    <div className="grid grid-cols-4 gap-3 border-b border-slate-200 bg-slate-50 px-3 py-3 sm:px-4 sm:py-4">
+                      <div className="h-3 rounded bg-slate-200" />
+                      <div className="h-3 rounded bg-slate-200" />
+                      <div className="h-3 rounded bg-slate-200" />
+                      <div className="h-3 rounded bg-slate-200" />
+                    </div>
+
+                    {walletSkeletonRows.map((rowIndex) => (
+                      <div key={`wallet-skeleton-${rowIndex}`} className="grid grid-cols-4 gap-3 px-3 py-3 sm:px-4 sm:py-4">
+                        <div className="h-4 rounded bg-slate-200" />
+                        <div className="h-4 rounded bg-slate-200" />
+                        <div className="h-4 rounded bg-slate-200" />
+                        <div className="h-4 rounded bg-slate-200" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : wallet ? (
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -742,7 +783,9 @@ export default function ProfilePage() {
             </section>
 
             {/* Coupons Section */}
-            <section className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm">
+            <section
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-[520ms] hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+            >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Coupons</p>
                 <h2 className="mt-2 text-xl sm:text-2xl font-bold text-slate-900">Daftar Kupon Saya</h2>
@@ -752,8 +795,28 @@ export default function ProfilePage() {
               </div>
 
               {walletAndCouponsLoading ? (
-                <div className="flex justify-center py-6 sm:py-8">
-                  <div className="h-6 w-48 animate-pulse rounded-lg bg-slate-200" />
+                <div className="space-y-2 sm:space-y-3">
+                  {couponSkeletonRows.map((rowIndex) => (
+                    <div key={`coupon-skeleton-${rowIndex}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 animate-pulse">
+                        <div>
+                          <div className="h-3 w-14 rounded bg-slate-200" />
+                          <div className="mt-2 h-4 w-24 rounded bg-slate-300" />
+                        </div>
+                        <div>
+                          <div className="h-3 w-16 rounded bg-slate-200" />
+                          <div className="mt-2 h-4 w-12 rounded bg-slate-300" />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1">
+                          <div className="h-3 w-20 rounded bg-slate-200" />
+                          <div className="mt-2 h-4 w-28 rounded bg-slate-300" />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1 sm:flex sm:items-end sm:justify-end">
+                          <div className="h-7 w-24 rounded-full bg-slate-300" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : coupons.length > 0 ? (
                 <div className="space-y-2 sm:space-y-3">
