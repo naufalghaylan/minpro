@@ -191,6 +191,23 @@ const getErrorMessage = (error: unknown) => {
   return 'Terjadi kesalahan. Coba lagi.';
 };
 
+const getDecisionCountdown = (paidAt?: string | null, currentTime?: number) => {
+  if (!paidAt) return null;
+
+  const now = currentTime || Date.now();
+  const paid = new Date(paidAt).getTime();
+  const deadline = paid + 48 * 60 * 60 * 1000; // 48 hours in milliseconds
+  const remaining = deadline - now;
+
+  if (remaining <= 0) return 'Waktu habis';
+
+  const hours = Math.floor(remaining / (1000 * 60 * 60));
+  const minutes = Math.floor((remaining / (1000 * 60)) % 60);
+  const seconds = Math.floor((remaining / 1000) % 60);
+
+  return `${hours}j ${minutes}m ${seconds}s`;
+};
+
 export default function OrganizerDashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
 
@@ -214,6 +231,14 @@ export default function OrganizerDashboardPage() {
   const [transactionEventFilter, setTransactionEventFilter] = useState('');
   const [decisionReasonById, setDecisionReasonById] = useState<Record<string, string>>({});
   const [transactionActionLoadingId, setTransactionActionLoadingId] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const [statsQuery, setStatsQuery] = useState<StatsQuery>(() => {
     const now = new Date();
@@ -809,6 +834,13 @@ const fetchRatings = useCallback(async () => {
 
                   {transaction.status === 'PAID' && (
                     <div className="mt-4 border-t border-slate-200 pt-4">
+                      {/* Countdown Timer */}
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-sm font-semibold text-amber-800">
+                          ⏰ Sisa waktu untuk keputusan: {getDecisionCountdown(transaction.paidAt, now)}
+                        </p>
+                      </div>
+
                       <label className="block text-sm text-slate-600">
                         Catatan keputusan (opsional)
                         <textarea

@@ -12,6 +12,12 @@ import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
 import { AuthRequest } from './src/types/auth';
 import { decideOrganizerTransaction } from './src/services/organizerDashboardService';
 
+// Helper function to convert date to WIB (UTC+7)
+const convertToWIB = (date: Date): Date => {
+  const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+  return new Date(utc + (3600000 * 7));
+};
+
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 function getEventStatus(event: any) {
@@ -43,14 +49,15 @@ function getEventStatus(event: any) {
 function calculateFinalPrice(event: any) {
   let finalPrice = Number(event.price);
 
-  const now = new Date().getTime();
+  // Use WIB time (UTC+7)
+  const now = convertToWIB(new Date()).getTime();
 
   const start = event.discountStart
-    ? new Date(event.discountStart).getTime()
+    ? convertToWIB(new Date(event.discountStart)).getTime()
     : null;
 
   const end = event.discountEnd
-    ? new Date(event.discountEnd).getTime()
+    ? convertToWIB(new Date(event.discountEnd)).getTime()
     : null;
 
   const isDiscountActive =
@@ -207,6 +214,7 @@ app.post(
 const {
   name,
   description,
+  pricingType,
   price,
   totalSeats,
 
@@ -229,6 +237,7 @@ const {
         data: {
   name,
   description,
+  pricingType: pricingType || "PAID",
   price: Number(price),
   totalSeats: Number(totalSeats),
   availableSeats: Number(totalSeats),
@@ -239,17 +248,17 @@ const {
 
     location,
     city,
-  // 🔥 DISKON
+  // 🔥 DISKON - Convert to WIB (UTC+7)
   discountType: discountType || null,
   discountValue: discountValue ? Number(discountValue) : null,
-  discountStart: discountStart ? new Date(discountStart) : null,
-  discountEnd: discountEnd ? new Date(discountEnd) : null,
+  discountStart: discountStart ? convertToWIB(new Date(discountStart)) : null,
+  discountEnd: discountEnd ? convertToWIB(new Date(discountEnd)) : null,
 
   event_images: {
     create: files.map((file) => ({
       url: file.filename,
     })),
-  },  
+  },
 },
         include: {
           event_images: true,
@@ -825,6 +834,10 @@ app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
 
       const expiredAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
 
+      // 🔥 FREE events auto DONE status
+      const isFreeEvent = event.pricingType === "FREE";
+      const trxStatus = isFreeEvent ? "DONE" : "PENDING";
+
       const trx = await tx.transaction.create({
         data: {
           userId,
@@ -840,8 +853,8 @@ app.post('/checkout', authMiddleware, async (req: AuthRequest, res) => {
 
           referralCodeUsed: referralUsed,
 
-          status: "PENDING",
-          expiredAt,
+          status: trxStatus,
+          expiredAt: isFreeEvent ? null : expiredAt,
         },
       });
 
@@ -944,6 +957,7 @@ app.post(
         data: {
           paymentProof: req.file.filename,
           status: "PAID",
+          paidAt: new Date(),
         },
       });
 
@@ -985,6 +999,14 @@ app.post('/transactions/:id/cancel', async (req, res) => {
       });
     }
 
+    // 🔥 Rollback coupon if used
+    if (trx.couponCodeUsed) {
+      await prisma.coupons.updateMany({
+        where: { code: trx.couponCodeUsed },
+        data: { usedAt: null },
+      });
+    }
+
     await prisma.transaction.update({
       where: { id },
       data: { status: 'CANCELLED' },
@@ -1022,6 +1044,14 @@ cron.schedule('*/5 * * * *', async () => {
               increment: trx.order.quantity,
             },
           },
+        });
+      }
+
+      // 🔥 Rollback coupon if used
+      if (trx.couponCodeUsed) {
+        await prisma.coupons.updateMany({
+          where: { code: trx.couponCodeUsed },
+          data: { usedAt: null },
         });
       }
 
@@ -1144,7 +1174,11 @@ app.get("/my-tickets", authMiddleware, async (req: AuthRequest, res) => {
       include: {
         order: {
           include: {
-            event: true,
+            event: {
+              include: {
+                event_images: true,
+              },
+            },
           },
         },
       },

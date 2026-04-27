@@ -24,12 +24,27 @@ export default function OrderPage() {
   const [reviewLoading, setReviewLoading] = useState(false);
 
   // VOUCHER / COUPON
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [voucherCode, setVoucherCode] = useState("");
   const [preview, setPreview] = useState<any>(null);
   const [loadingVoucher, setLoadingVoucher] = useState(false);
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
 
   const BASE_URL = "http://localhost:3000";
+
+  // FORMAT DATE
+  const formatDate = (date?: string) => {
+    if (!date) return "-";
+
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "-";
+
+    return d.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -41,9 +56,14 @@ export default function OrderPage() {
       fetchEvent();
       fetchReviews();
       fetchCoupons();
-      checkPurchaseAndReview();
     }
   }, [eventId]);
+
+  useEffect(() => {
+    if (reviews.length >= 0) {
+      checkPurchaseAndReview();
+    }
+  }, [reviews]);
 
   const fetchEvent = async () => {
     const res = await api.get(`/events/${eventId}`);
@@ -128,7 +148,16 @@ export default function OrderPage() {
   const getCountdown = (end?: string | null) => {
     if (!end) return null;
 
-    const distance = new Date(end).getTime() - now;
+    // Convert current time to WIB (UTC+7)
+    const utc = now + (new Date().getTimezoneOffset() * 60000);
+    const wibNow = utc + (3600000 * 7);
+
+    // Convert endDate to WIB
+    const endTime = new Date(end).getTime();
+    const utcEnd = endTime + (new Date(end).getTimezoneOffset() * 60000);
+    const wibEnd = utcEnd + (3600000 * 7);
+
+    const distance = wibEnd - wibNow;
     if (distance <= 0) return "Promo berakhir";
 
     const h = Math.floor(distance / (1000 * 60 * 60));
@@ -179,9 +208,11 @@ export default function OrderPage() {
       );
 
       setPreview(res.data);
+      setAppliedCouponCode(voucherCode);
     } catch (err: any) {
       alert(err.response?.data?.message);
       setPreview(null);
+      setAppliedCouponCode(null);
     } finally {
       setLoadingVoucher(false);
     }
@@ -238,7 +269,12 @@ export default function OrderPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      navigate(`/transactions/${res.data.transactionId}`);
+      if (event.pricingType === "FREE") {
+        alert("PEMESANAN TICKET EVENT BERHASIL.... REDIRECT KE EVENT TICKET");
+        navigate("/myticket");
+      } else {
+        navigate(`/transactions/${res.data.transactionId}`);
+      }
     } catch (err: any) {
       alert(err.response?.data?.message || "Checkout gagal");
     } finally {
@@ -247,10 +283,10 @@ export default function OrderPage() {
   };
 
   return (
-    <div className="bg-gray-100 min-h-screen">
+    <div className="bg-gradient-to-b from-gray-100 to-gray-200 min-h-screen">
       <Header />
 
-      <div className="max-w-6xl mx-auto p-4 grid md:grid-cols-2 gap-6">
+      <div className="max-w-7xl mx-auto p-6 py-12 grid md:grid-cols-2 gap-8">
 
         {/* IMAGE */}
         <div className="relative rounded-2xl overflow-hidden shadow">
@@ -273,40 +309,62 @@ export default function OrderPage() {
         </div>
 
         {/* CARD */}
-        <div className="bg-white p-6 rounded-2xl shadow-lg">
+        <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-white/20">
 
-          <h1 className="text-2xl font-bold">{event.name}</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-3">{event.name}</h1>
+          
 
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-yellow-500 text-sm">
-              ⭐ {avgRating.toFixed(1)} / 5 ({reviews.length} review)
-            </p>
-
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-2 bg-yellow-50 px-3 py-1.5 rounded-full">
+              <span className="text-yellow-500 text-lg">⭐</span>
+              <span className="font-semibold text-yellow-700">
+                {avgRating.toFixed(1)} / 5
+              </span>
+              <span className="text-yellow-600 text-sm">({reviews.length} review)</span>
+            </div>
+            
             {/* Status Badge */}
-            <span className={`text-xs px-3 py-1 rounded-full text-white ${
+            <span className={`text-xs font-bold px-4 py-1.5 rounded-full text-white shadow-md ${
               isEnded
                 ? "bg-gray-500"
                 : isSoldOut
                 ? "bg-red-500"
-                : "bg-green-500"
+                : "bg-gradient-to-r from-green-500 to-emerald-500"
             }`}>
               {isEnded && "ENDED"}
               {isSoldOut && "SOLD OUT"}
               {!isEnded && !isSoldOut && "AVAILABLE"}
             </span>
           </div>
+                    {/* DATE & TIME */}
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 text-gray-700">
+              <span className="text-2xl">📅</span>
+              <span className="font-medium">{formatDate(event.eventDate)}</span>
+            </div>
 
-          <p className="text-gray-500 mb-2">{event.description}</p>
+            <div className="flex items-center gap-3 text-gray-700">
+              <span className="text-2xl">⏰</span>
+              <span className="font-medium">{event.startTime || "-"} - {event.endTime || "-"}</span>
+            </div>
+          </div>
+
+          <p className="text-gray-600 mb-6 leading-relaxed">{event.description}</p>
+
+
 
           {/* REVIEWS LIST */}
-          <div className="mt-4 mb-4">
-            <h3 className="font-semibold mb-3">Reviews</h3>
+          <div className="mb-6">
+            <h3 className="font-bold text-lg text-gray-800 mb-4">📝 Reviews</h3>
             {reviews.length > 0 ? (
-              <div className="space-y-3 max-h-60 overflow-y-auto">
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                 {reviews.map((review: any) => (
-                  <div key={review.id} className="bg-gray-50 p-3 rounded-lg">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{review.user?.name || "Anonymous"}</span>
+                  <div key={review.id} className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-xl border border-gray-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {review.user?.name?.charAt(0).toUpperCase() || "A"}
+                      </div>
+                      <span className="font-semibold text-gray-800">{review.user?.name || "Anonymous"}</span>
                       <span className="text-yellow-500 text-sm">⭐ {review.rating}/5</span>
                     </div>
                     <p className="text-sm text-gray-600">{review.comment}</p>
@@ -314,88 +372,115 @@ export default function OrderPage() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">Belum ada review</p>
+              <div className="bg-gray-50 rounded-xl p-6 text-center">
+                <p className="text-gray-500">Belum ada review</p>
+              </div>
             )}
           </div>
 
           {/* PRICE */}
-          <div className="mb-4">
-            {isDiscount && (
-              <p className="line-through text-gray-400">
-                Rp {price.toLocaleString()}
+          <div className="mb-6">
+            {event.pricingType === "FREE" ? (
+              <p className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-emerald-500">
+                GRATIS
               </p>
-            )}
+            ) : (
+              <>
+                {isDiscount && (
+                  <p className="text-gray-400 line-through text-lg mb-1">
+                    Rp {price.toLocaleString()}
+                  </p>
+                )}
 
-            <p className="text-3xl font-bold text-blue-600">
-              Rp {finalPrice.toLocaleString()}
-            </p>
+                <p className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                  Rp {finalPrice.toLocaleString()}
+                </p>
+              </>
+            )}
           </div>
 
           {/* QUANTITY */}
           {!isEnded && !isSoldOut && (
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-medium">Jumlah</span>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setQuantity(q => Math.max(1, q - 1))}>-</button>
-                <span>{quantity}</span>
-                <button onClick={() => setQuantity(q => q + 1)}>+</button>
+            <div className="flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-xl">
+              <span className="font-semibold text-gray-700">Jumlah</span>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                  className="w-10 h-10 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center text-xl font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600 transition"
+                >-</button>
+                <span className="text-2xl font-bold text-gray-800 w-12 text-center">{quantity}</span>
+                <button 
+                  onClick={() => setQuantity(q => q + 1)}
+                  className="w-10 h-10 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center text-xl font-bold text-gray-700 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600 transition"
+                >+</button>
               </div>
             </div>
           )}
 
           {/* VOUCHER / COUPON */}
-          {!isEnded && !isSoldOut && (
-            <div className="mb-4">
-              <div className="flex border rounded-xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-blue-400 transition">
+          {!isEnded && !isSoldOut && event.pricingType !== "FREE" && (
+            <div className="mb-6">
+              <div className="flex border-2 border-gray-200 rounded-2xl overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-blue-400 focus-within:border-blue-500 transition">
 
                 <input
                   value={voucherCode}
                   onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
                   placeholder="Kode voucher / coupon"
-                  className="flex-1 px-4 py-2 outline-none"
+                  className="flex-1 px-5 py-3 outline-none text-gray-700 placeholder-gray-400"
                 />
 
                 <button
                   onClick={applyVoucher}
                   disabled={!voucherCode || loadingVoucher}
-                  className={`px-5 font-semibold transition
-                    ${!voucherCode
-                      ? "bg-gray-300 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 text-white"}
-                  `}
+                  className={`px-6 font-semibold transition ${
+                    !voucherCode
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                  }`}
                 >
                   {loadingVoucher ? "..." : "Apply"}
                 </button>
               </div>
 
               {preview && (
-                <p className="text-green-600 text-sm mt-1">
-                  ✔ Voucher/Coupon berhasil digunakan
-                </p>
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+                  <p className="text-green-700 text-sm font-medium">✔ Voucher/Coupon berhasil digunakan</p>
+                </div>
               )}
 
               {/* Available Coupons */}
               {coupons.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-xs font-semibold text-slate-600 mb-2">Kupon tersedia:</p>
+                <div className="mt-4">
+                  <p className="text-sm font-bold text-slate-700 mb-3">🎟️ Kupon tersedia:</p>
                   <div className="space-y-2 max-h-32 overflow-y-auto">
                     {coupons.map((coupon) => {
                       const expired = isExpired(coupon.expiresAt);
                       const used = isUsed(coupon.usedAt);
+                      const isApplied = appliedCouponCode === coupon.code;
 
                       if (expired || used) return null;
 
                       return (
                         <div
                           key={coupon.id}
-                          onClick={() => handleCouponClick(coupon.code)}
-                          className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition"
+                          onClick={() => !isApplied && handleCouponClick(coupon.code)}
+                          className={`flex items-center justify-between p-3 rounded-xl transition ${
+                            isApplied
+                              ? "bg-green-50 border-green-300 border-2"
+                              : "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 cursor-pointer hover:from-blue-100 hover:to-indigo-100"
+                          }`}
                         >
                           <div>
-                            <p className="text-sm font-semibold text-blue-800">{coupon.code}</p>
+                            <p className={`text-sm font-bold ${isApplied ? "text-green-800" : "text-blue-800"}`}>{coupon.code}</p>
                             <p className="text-xs text-slate-600">potongan sebesar {coupon.amount.toLocaleString()}%</p>
                           </div>
-                          <span className="text-xs text-blue-600 font-medium">Klik untuk pakai</span>
+                          <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                            isApplied
+                              ? "bg-green-600 text-white"
+                              : "bg-white text-blue-600"
+                          }`}>
+                            {isApplied ? "Applied ✓" : "Klik untuk pakai"}
+                          </span>
                         </div>
                       );
                     })}
@@ -409,11 +494,13 @@ export default function OrderPage() {
           )}
 
           {/* SUMMARY */}
-          {!isEnded && !isSoldOut && (
-            <div className="border-t pt-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Total</span>
-                <span>Rp {total.toLocaleString()}</span>
+          {!isEnded && !isSoldOut && event.pricingType !== "FREE" && (
+            <div className="border-t-2 border-gray-200 pt-4 space-y-2 text-sm">
+              <div className="flex justify-between items-center text-lg">
+                <span className="font-semibold text-gray-700">Total</span>
+                <span className="font-bold text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                  Rp {total.toLocaleString()}
+                </span>
               </div>
             </div>
           )}
@@ -421,10 +508,12 @@ export default function OrderPage() {
           <button
             onClick={handleCheckout}
             disabled={loading || isEnded || isSoldOut}
-            className={`w-full mt-6 py-3 rounded-xl text-white font-semibold transition ${
+            className={`w-full mt-8 py-4 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-[1.02] ${
               isEnded || isSoldOut
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700"
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : loading
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg hover:shadow-xl"
             }`}
           >
             {isEnded
@@ -436,53 +525,59 @@ export default function OrderPage() {
               : "Checkout"}
           </button>
 
-          {/* REVIEW SECTION - Only show if user has purchased */}
-          {hasPurchased && (
-            <div className="mt-6 border-t pt-6">
-              <h3 className="font-semibold text-lg mb-4">Beri Review</h3>
-              
-              {hasReviewed ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-green-700">✓ Kamu sudah memberikan review untuk event ini</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
-                    <select
-                      value={rating}
-                      onChange={(e) => setRating(Number(e.target.value))}
-                      className="w-full md:w-auto border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
-                    >
-                      <option value={5}>⭐⭐⭐⭐⭐ (5/5)</option>
-                      <option value={4}>⭐⭐⭐⭐ (4/5)</option>
-                      <option value={3}>⭐⭐⭐ (3/5)</option>
-                      <option value={2}>⭐⭐ (2/5)</option>
-                      <option value={1}>⭐ (1/5)</option>
-                    </select>
-                  </div>
+          {/* REVIEW SECTION - Always show */}
+          <div className="mt-8 border-t-2 border-gray-200 pt-8">
+            <h3 className="font-bold text-xl text-gray-800 mb-6"> Beri Review</h3>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Komentar</label>
-                    <textarea
-                      placeholder="Tulis pengalaman kamu..."
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none resize-none h-24"
-                    />
-                  </div>
-
-                  <button
-                    onClick={submitReview}
-                    disabled={reviewLoading}
-                    className="w-full md:w-auto px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+            {!token ? (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6">
+                <p className="text-blue-700 font-semibold"> Login dulu untuk memberikan review</p>
+              </div>
+            ) : !hasPurchased ? (
+              <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-6">
+                <p className="text-orange-700 font-semibold"> Beli event dulu untuk memberikan review</p>
+              </div>
+            ) : hasReviewed ? (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6">
+                <p className="text-green-700 font-semibold"> Kamu sudah memberikan review untuk event ini</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Rating</label>
+                  <select
+                    value={rating}
+                    onChange={(e) => setRating(Number(e.target.value))}
+                    className="w-full md:w-auto border-2 border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none"
                   >
-                    {reviewLoading ? "Mengirim..." : "Kirim Review"}
-                  </button>
+                    <option value={5}>⭐⭐⭐⭐⭐ (5/5)</option>
+                    <option value={4}>⭐⭐⭐⭐ (4/5)</option>
+                    <option value={3}>⭐⭐⭐ (3/5)</option>
+                    <option value={2}>⭐⭐ (2/5)</option>
+                    <option value={1}>⭐ (1/5)</option>
+                  </select>
                 </div>
-              )}
-            </div>
-          )}
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Komentar</label>
+                  <textarea
+                    placeholder="Tulis pengalaman kamu..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    className="w-full border-2 border-gray-300 p-4 rounded-xl focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none resize-none h-28"
+                  />
+                </div>
+
+                <button
+                  onClick={submitReview}
+                  disabled={reviewLoading}
+                  className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 shadow-lg hover:shadow-xl"
+                >
+                  {reviewLoading ? "Mengirim..." : "Kirim Review"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

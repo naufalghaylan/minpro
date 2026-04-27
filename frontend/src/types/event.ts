@@ -16,6 +16,7 @@ export type event_images = {
 export interface Event {
   id: string;
   name: string;
+  pricingType?: string; // FREE | PAID
   price: number;
   totalSeats: number;
   availableSeats: number;

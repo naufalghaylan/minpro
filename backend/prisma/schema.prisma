@@ -66,18 +66,19 @@ model refresh_tokens {
 model events {
   id               String         @id @default(uuid())
   name             String         @unique @db.VarChar(255)
-  description      String?        
+  description      String?
 
+  pricingType      String         @default("PAID") // FREE | PAID
   price            Float
   totalSeats       Int
   availableSeats   Int
 
-  eventDate        DateTime?     
-  startTime        String?        
-  endTime          String?       
+  eventDate        DateTime?
+  startTime        String?
+  endTime          String?
 
-  location         String?        
-  city             String?        
+  location         String?
+  city             String?
 
   eventOrganizerId String
   created_at       DateTime       @default(now())
@@ -171,6 +172,7 @@ model transaction {
   status       StatusOrder @default(PENDING)
   decisionNote String? @db.VarChar(255)
   decisionAt   DateTime?
+  paidAt       DateTime? @map("paid_at")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   expiredAt    DateTime?
