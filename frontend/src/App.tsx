@@ -1,4 +1,5 @@
-import { Routes, Route } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Home from "./pages/home";
 import OrderPage from "./pages/OrderPage/OrderPage";
 import EventsPage from "./pages/EventsPage/events";
@@ -19,42 +20,68 @@ import TicketDetailPage from "./pages/TicketDetailPage/TicketDetailPage";
 import OrganizerDashboardPage from "./pages/OrganizerDashboardPage/OrganizerDashboardPage";
 
 function App() {
-  return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/order/:eventId" element={<OrderPage />} />
-      <Route path="/events" element={<EventsPage />} />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/checkout" element={<CheckoutPage />} />
-      <Route path="/createevent" element={<CreateEvent />} />
-      <Route path="/transactions/:id" element={<PaymentPage />} />
-      <Route path="/verify" element={<AdminTransactionPage />} />
-      <Route
-        path="/organizer/dashboard"
-        element={
-          <RequireAuth>
-            <RequireRole allow={["EVENT_ORGANIZER"]}>
-              <OrganizerDashboardPage />
-            </RequireRole>
-          </RequireAuth>
-        }
-      />
-      <Route path="/vouchers" element={<VoucherPage />} />
-      <Route path="/myticket" element={<MyTicketsPage />} />
-      <Route path="/ticketdetail/:id" element={<TicketDetailPage />} />
+  const location = useLocation();
 
-      <Route
-        path="/profile"
-        element={
-          <RequireAuth>
-            <ProfilePage />
-          </RequireAuth>
-        }
-      />
-    </Routes>
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
+        transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Home />} />
+          <Route
+            path="/order/:eventId"
+            element={
+              <RequireAuth allowedRoles={["CUSTOMER"]}>
+                <OrderPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/checkout"
+            element={
+              <RequireAuth allowedRoles={["CUSTOMER"]}>
+                <CheckoutPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="/createevent" element={<CreateEvent />} />
+          <Route path="/transactions/:id" element={<PaymentPage />} />
+          <Route path="/verify" element={<AdminTransactionPage />} />
+          <Route
+            path="/organizer/dashboard"
+            element={
+              <RequireAuth>
+                <RequireRole allow={["EVENT_ORGANIZER"]}>
+                  <OrganizerDashboardPage />
+                </RequireRole>
+              </RequireAuth>
+            }
+          />
+          <Route path="/vouchers" element={<VoucherPage />} />
+          <Route path="/myticket" element={<MyTicketsPage />} />
+          <Route path="/ticketdetail/:id" element={<TicketDetailPage />} />
+
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth>
+                <ProfilePage />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 

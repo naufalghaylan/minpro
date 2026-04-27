@@ -34,6 +34,7 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    setFocus,
     formState: { errors },
   } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -41,6 +42,10 @@ export default function RegisterPage() {
       role: 'CUSTOMER',
     },
   });
+
+  React.useEffect(() => {
+    setFocus('email');
+  }, [setFocus]);
 
   const onSubmit = async (data: RegisterInput) => {
     setLoading(true);
@@ -77,7 +82,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 z-0">
-        <div className="w-full h-full bg-gradient-to-br from-blue-300/40 via-white/60 to-yellow-200/60 blur-2xl" />
+        <div className="w-full h-full bg-linear-to-br from-blue-300/40 via-white/60 to-yellow-200/60 blur-2xl" />
       </div>
 
       <div className="w-full max-w-md z-10 px-4 py-10">

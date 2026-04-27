@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -8,7 +8,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -210,6 +209,11 @@ const getDecisionCountdown = (paidAt?: string | null, currentTime?: number) => {
 
 export default function OrganizerDashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
+  const [isPageVisible, setIsPageVisible] = useState(false);
+  const [isTabContentVisible, setIsTabContentVisible] = useState(false);
+  const [isTabSkeletonVisible, setIsTabSkeletonVisible] = useState(false);
+  const [shouldStaggerTabContent, setShouldStaggerTabContent] = useState(false);
+  const hasMountedTabTransition = useRef(false);
 
   const [overview, setOverview] = useState<OrganizerDashboardOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -303,6 +307,127 @@ const [avgRating, setAvgRating] = useState(0);
       { title: 'Total Revenue', value: formatIdr(overview.totalRevenue) },
     ];
   }, [overview]);
+
+  const statisticCharts = useMemo(
+    () => [
+      {
+        key: 'revenue',
+        title: 'Revenue',
+        description: 'Pendapatan event pada periode yang dipilih.',
+        dataKey: 'revenue' as const,
+        color: '#f59e0b',
+        formatValue: (value: number) => formatIdr(value),
+      },
+      {
+        key: 'ticketsSold',
+        title: 'Ticket Sold',
+        description: 'Jumlah tiket terjual pada periode yang dipilih.',
+        dataKey: 'ticketsSold' as const,
+        color: '#0284c7',
+        formatValue: (value: number) => value.toString(),
+      },
+      {
+        key: 'transactionCount',
+        title: 'Transaction',
+        description: 'Jumlah transaksi pada periode yang dipilih.',
+        dataKey: 'transactionCount' as const,
+        color: '#0f766e',
+        formatValue: (value: number) => value.toString(),
+      },
+    ],
+    []
+  );
+
+  const yearlyStatisticsTicks = useMemo(() => {
+    if (!statistics || statistics.groupBy !== 'year') {
+      return [] as number[];
+    }
+
+    let latestYear = statsQuery.year;
+    if (statistics.series.length > 0) {
+      latestYear = Math.max(...statistics.series.map((item) => item.bucket));
+    }
+
+    return Array.from({ length: 5 }, (_, index) => latestYear - 4 + index);
+  }, [statistics, statsQuery.year]);
+
+  const visibleStatisticsSeries = useMemo(() => {
+    if (!statistics) {
+      return [] as OrganizerStatisticsData['series'];
+    }
+
+    if (statistics.groupBy === 'year') {
+      let latestYear = statsQuery.year;
+      if (statistics.series.length > 0) {
+        latestYear = Math.max(...statistics.series.map((item) => item.bucket));
+      }
+
+      const minimumYear = latestYear - 4;
+
+      if (statistics.series.length === 0) {
+        // Generate dummy series for 5 years so axis ticks still display
+        return Array.from({ length: 5 }, (_, index) => ({
+          bucket: minimumYear + index,
+          transactionCount: 0,
+          ticketsSold: 0,
+          revenue: 0,
+        }));
+      }
+
+      const filtered = statistics.series
+        .filter((item) => item.bucket >= minimumYear && item.bucket <= latestYear)
+        .sort((left, right) => left.bucket - right.bucket);
+
+      // Fill missing years with zeros if there are gaps
+      const filledSeries: OrganizerStatisticsData['series'] = [];
+      for (let year = minimumYear; year <= latestYear; year++) {
+        const existing = filtered.find((item) => item.bucket === year);
+        filledSeries.push(
+          existing || {
+            bucket: year,
+            transactionCount: 0,
+            ticketsSold: 0,
+            revenue: 0,
+          }
+        );
+      }
+
+      return filledSeries;
+    }
+
+    if (statistics.groupBy === 'month') {
+      if (statistics.series.length === 0) {
+        // Generate dummy series for 12 months so axis ticks still display
+        return Array.from({ length: 12 }, (_, index) => ({
+          bucket: index + 1,
+          transactionCount: 0,
+          ticketsSold: 0,
+          revenue: 0,
+        }));
+      }
+
+      const sorted = statistics.series.sort((left, right) => left.bucket - right.bucket);
+
+      // Fill missing months with zeros if there are gaps
+      const filledSeries: OrganizerStatisticsData['series'] = [];
+      for (let month = 1; month <= 12; month++) {
+        const existing = sorted.find((item) => item.bucket === month);
+        filledSeries.push(
+          existing || {
+            bucket: month,
+            transactionCount: 0,
+            ticketsSold: 0,
+            revenue: 0,
+          }
+        );
+      }
+
+      return filledSeries;
+    }
+
+    // For day or other groupBy modes, return as-is
+    return statistics.series;
+  }, [statistics, statsQuery.year]);
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -453,6 +578,35 @@ const fetchRatings = useCallback(async () => {
   }
 }, []);
   useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setIsPageVisible(true);
+    }, 60);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  useEffect(() => {
+    if (!hasMountedTabTransition.current) {
+      hasMountedTabTransition.current = true;
+      setIsTabContentVisible(true);
+      setShouldStaggerTabContent(false);
+      return;
+    }
+
+    setIsTabSkeletonVisible(true);
+    setIsTabContentVisible(false);
+    setShouldStaggerTabContent(true);
+
+    const timeoutId = window.setTimeout(() => {
+      setIsTabSkeletonVisible(false);
+      setIsTabContentVisible(true);
+      setShouldStaggerTabContent(false);
+    }, 320);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab]);
+
+  useEffect(() => {
     const now = new Date();
 
     void fetchOverview();
@@ -569,12 +723,80 @@ const fetchRatings = useCallback(async () => {
     }
   };
 
+  const heroRevealClass = isPageVisible ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-4 opacity-0 blur-[2px]';
+  const tabRevealClass = isTabContentVisible
+    ? 'translate-y-0 opacity-100 blur-0'
+    : 'translate-y-2 opacity-0 blur-[3px] pointer-events-none';
+  const getItemStaggerClass = (index: number) => {
+    const staggerClasses = [
+      'dashboard-stagger-0',
+      'dashboard-stagger-1  ',
+      'dashboard-stagger-2',
+      'dashboard-stagger-3',
+      'dashboard-stagger-4',
+      'dashboard-stagger-5',
+    ];
+
+    return staggerClasses[index % staggerClasses.length];
+  };
+  const getItemRevealClass = (index: number) => {
+    const baseClasses = [
+      'transition-all',
+      'duration-500',
+      'ease-out',
+    ];
+
+    // Jika shouldStaggerTabContent false dan isTabContentVisible true,
+    // langsung visible tanpa stagger
+    if (!shouldStaggerTabContent && isTabContentVisible) {
+      return [...baseClasses, 'translate-y-0 opacity-100 blur-0'].join(' ');
+    }
+
+    // Jika shouldStaggerTabContent true, apply stagger
+    return [
+      ...baseClasses,
+      getItemStaggerClass(index),
+      isTabContentVisible ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-3 opacity-0 blur-[2px]',
+    ].join(' ');
+  };
+
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-100 via-white to-slate-50 text-slate-900">
+      <style>
+        {`
+          .dashboard-skeleton-shimmer {
+            position: relative;
+            overflow: hidden;
+            background-color: rgb(226 232 240);
+          }
+
+          .dashboard-skeleton-shimmer::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            transform: translateX(-100%);
+            background-image: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.72) 45%, transparent 100%);
+            animation: dashboardShimmer 1.35s ease-in-out infinite;
+          }
+
+          @keyframes dashboardShimmer {
+            100% {
+              transform: translateX(100%);
+            }
+          }
+
+          .dashboard-stagger-0 { transition-delay: 110ms; }
+          .dashboard-stagger-1 { transition-delay: 170ms; }
+          .dashboard-stagger-2 { transition-delay: 230ms; }
+          .dashboard-stagger-3 { transition-delay: 290ms; }
+          .dashboard-stagger-4 { transition-delay: 350ms; }
+          .dashboard-stagger-5 { transition-delay: 410ms; }
+        `}
+      </style>
       <Header />
 
       <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <section className={`rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-700 ${heroRevealClass} sm:p-8`}>
           <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm uppercase tracking-widest text-sky-600">Event Organizer Console</p>
@@ -638,18 +860,26 @@ const fetchRatings = useCallback(async () => {
         </section>
 
         {activeTab === 'overview' && (
-          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {overviewLoading && (
-              <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-                Memuat ringkasan dashboard...
+          <section className={`mt-6 grid gap-4 transition-all duration-500 delay-75 sm:grid-cols-2 lg:grid-cols-3 ${tabRevealClass}`}>
+            {(overviewLoading || isTabSkeletonVisible) && (
+              <div className="col-span-full grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div
+                    key={`overview-skeleton-${index}`}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="h-3 w-24 rounded dashboard-skeleton-shimmer" />
+                    <div className="mt-3 h-8 w-28 rounded dashboard-skeleton-shimmer" />
+                  </div>
+                ))}
               </div>
             )}
 
-            {!overviewLoading &&
-              overviewCards.map((item) => (
+            {!overviewLoading && !isTabSkeletonVisible &&
+              overviewCards.map((item, index) => (
                 <article
                   key={item.title}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:-translate-y-0.5 hover:shadow-md ${getItemRevealClass(index)}`}
                 >
                   <p className="text-xs uppercase tracking-wide text-slate-500">{item.title}</p>
                   <p className="mt-2 text-2xl font-bold text-slate-900">{item.value}</p>
@@ -659,7 +889,9 @@ const fetchRatings = useCallback(async () => {
         )}
 
         {activeTab === 'events' && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section
+            className={`mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-500 delay-100 ${tabRevealClass} sm:p-6`}
+          >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Daftar Event Organizer</h2>
               <button
@@ -673,17 +905,32 @@ const fetchRatings = useCallback(async () => {
               </button>
             </div>
 
-            {eventsLoading && <p className="text-sm text-slate-500">Memuat data event...</p>}
+            {(eventsLoading || isTabSkeletonVisible) && (
+              <div className="grid gap-4 md:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`events-skeleton-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="h-5 w-40 rounded dashboard-skeleton-shimmer" />
+                    <div className="mt-2 h-3 w-32 rounded dashboard-skeleton-shimmer" />
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="h-14 rounded-lg dashboard-skeleton-shimmer" />
+                        <div className="h-14 rounded-lg dashboard-skeleton-shimmer" />
+                        <div className="h-14 rounded-lg dashboard-skeleton-shimmer" />
+                        <div className="h-14 rounded-lg dashboard-skeleton-shimmer" />
+                      </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {!eventsLoading && events.length === 0 && (
+            {!eventsLoading && !isTabSkeletonVisible && events.length === 0 && (
               <p className="text-sm text-slate-500">Belum ada event untuk organizer ini.</p>
             )}
 
             <div className="grid gap-4 md:grid-cols-2">
-              {events.map((event) => (
+              {!isTabSkeletonVisible && events.map((event, index) => (
                 <article
                   key={event.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-sky-200"
+                  className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 hover:border-sky-200 ${getItemRevealClass(index)}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -726,7 +973,9 @@ const fetchRatings = useCallback(async () => {
         )}
 
         {activeTab === 'transactions' && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section
+            className={`mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-500 delay-150 ${tabRevealClass} sm:p-6`}
+          >
             <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <h2 className="text-xl font-bold text-slate-900">Transaction Management</h2>
 
@@ -784,15 +1033,29 @@ const fetchRatings = useCallback(async () => {
               </div>
             </div>
 
-            {transactionsLoading && <p className="text-sm text-slate-500">Memuat transaksi...</p>}
+            {(transactionsLoading || isTabSkeletonVisible) && (
+              <div className="space-y-4">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={`transactions-skeleton-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="h-4 w-48 rounded dashboard-skeleton-shimmer" />
+                    <div className="mt-2 h-3 w-64 rounded dashboard-skeleton-shimmer" />
+                    <div className="mt-2 h-3 w-52 rounded dashboard-skeleton-shimmer" />
+                    <div className="mt-4 h-28 rounded-xl dashboard-skeleton-shimmer" />
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {!transactionsLoading && transactions.length === 0 && (
+            {!transactionsLoading && !isTabSkeletonVisible && transactions.length === 0 && (
               <p className="text-sm text-slate-500">Tidak ada transaksi sesuai filter.</p>
             )}
 
             <div className="grid gap-4">
-              {transactions.map((transaction) => (
-                <article key={transaction.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {!isTabSkeletonVisible && transactions.map((transaction, index) => (
+                <article
+                  key={transaction.id}
+                  className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 ${getItemRevealClass(index)}`}
+                >
                   <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
                     <div className="space-y-1 text-sm">
                       <p>
@@ -884,7 +1147,8 @@ const fetchRatings = useCallback(async () => {
               ))}
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
+            {!isTabSkeletonVisible && (
+              <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
               <button
                 type="button"
                 disabled={transactionMeta.page <= 1 || transactionsLoading}
@@ -918,12 +1182,15 @@ const fetchRatings = useCallback(async () => {
               >
                 Next
               </button>
-            </div>
+              </div>
+            )}
           </section>
         )}
 
         {activeTab === 'statistics' && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section
+            className={`mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-500 delay-200 ${tabRevealClass} sm:p-6`}
+          >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <h2 className="text-xl font-bold text-slate-900">Statistics Visualization</h2>
 
@@ -996,44 +1263,71 @@ const fetchRatings = useCallback(async () => {
               </div>
             </div>
 
-            {statisticsLoading && <p className="text-sm text-slate-500">Memuat statistik...</p>}
+            {(statisticsLoading || isTabSkeletonVisible) && (
+              <div className="h-96 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex h-full w-full items-end justify-between gap-2 rounded-lg bg-white px-4 py-3">
+                  <div className="h-20 w-8 rounded-md dashboard-skeleton-shimmer" />
+                  <div className="h-36 w-8 rounded-md dashboard-skeleton-shimmer" />
+                  <div className="h-28 w-8 rounded-md dashboard-skeleton-shimmer" />
+                  <div className="h-44 w-8 rounded-md dashboard-skeleton-shimmer" />
+                  <div className="h-24 w-8 rounded-md dashboard-skeleton-shimmer" />
+                  <div className="h-40 w-8 rounded-md dashboard-skeleton-shimmer" />
+                  <div className="h-32 w-8 rounded-md dashboard-skeleton-shimmer" />
+                </div>
+              </div>
+            )}
 
-            {!statisticsLoading && statistics && statistics.series.length === 0 && (
+            {!statisticsLoading && !isTabSkeletonVisible && statistics && statistics.series.length === 0 && (
               <p className="text-sm text-slate-500">Belum ada data statistik DONE untuk filter ini.</p>
             )}
 
-            {!statisticsLoading && statistics && statistics.series.length > 0 && (
-              <div className="h-96 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={statistics.series}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="bucket" />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value, name) => {
-                        const numericValue = typeof value === 'number' ? value : Number(value ?? 0);
-                        const label = String(name);
+            {!statisticsLoading && !isTabSkeletonVisible && statistics && statistics.series.length > 0 && (
+              <div className="grid gap-4">
+                {statisticCharts.map((chart) => (
+                  <article key={chart.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                    <div className="mb-4">
+                      <h3 className="text-base font-bold text-slate-900">{chart.title}</h3>
+                      <p className="mt-1 text-sm text-slate-500">{chart.description}</p>
+                    </div>
 
-                        if (label === 'revenue') {
-                          return [formatIdr(numericValue), 'Revenue'];
-                        }
-
-                        return [numericValue, label];
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="transactionCount" name="Transactions" fill="#0f766e" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="ticketsSold" name="Tickets Sold" fill="#0284c7" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="revenue" name="Revenue" fill="#f59e0b" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                    <div className="h-80 rounded-xl bg-white p-3">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={visibleStatisticsSeries}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis
+                            dataKey="bucket"
+                            tickLine={false}
+                            axisLine={false}
+                            ticks={statistics?.groupBy === 'year' ? yearlyStatisticsTicks : undefined}
+                          />
+                          <YAxis tickLine={false} axisLine={false} />
+                          <Tooltip
+                            formatter={(value) => {
+                              const numericValue = typeof value === 'number' ? value : Number(value ?? 0);
+                              return [chart.formatValue(numericValue), chart.title];
+                            }}
+                          />
+                          <Bar
+                            dataKey={chart.dataKey}
+                            name={chart.title}
+                            fill={chart.color}
+                            radius={[8, 8, 0, 0]}
+                            barSize={visibleStatisticsSeries.length <= 1 ? 32 : 28}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </article>
+                ))}
               </div>
             )}
           </section>
         )}
 
         {activeTab === 'attendees' && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section
+            className={`mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all duration-500 delay-200 ${tabRevealClass} sm:p-6`}
+          >
             <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <h2 className="text-xl font-bold text-slate-900">Attendee List</h2>
 
@@ -1064,13 +1358,34 @@ const fetchRatings = useCallback(async () => {
               </div>
             </div>
 
-            {attendeesLoading && <p className="text-sm text-slate-500">Memuat attendee...</p>}
+            {(attendeesLoading || isTabSkeletonVisible) && (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <div className="min-w-full divide-y divide-slate-200 bg-white">
+                  <div className="grid grid-cols-5 gap-3 bg-slate-50 px-3 py-2">
+                    <div className="h-3 rounded dashboard-skeleton-shimmer" />
+                    <div className="h-3 rounded dashboard-skeleton-shimmer" />
+                    <div className="h-3 rounded dashboard-skeleton-shimmer" />
+                    <div className="h-3 rounded dashboard-skeleton-shimmer" />
+                    <div className="h-3 rounded dashboard-skeleton-shimmer" />
+                  </div>
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={`attendees-skeleton-${index}`} className="grid grid-cols-5 gap-3 px-3 py-3">
+                      <div className="h-4 rounded dashboard-skeleton-shimmer" />
+                      <div className="h-4 rounded dashboard-skeleton-shimmer" />
+                      <div className="h-4 rounded dashboard-skeleton-shimmer" />
+                      <div className="h-4 rounded dashboard-skeleton-shimmer" />
+                      <div className="h-4 rounded dashboard-skeleton-shimmer" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {!attendeesLoading && attendees.length === 0 && (
+            {!attendeesLoading && !isTabSkeletonVisible && attendees.length === 0 && (
               <p className="text-sm text-slate-500">Belum ada attendee untuk event ini.</p>
             )}
 
-            {!attendeesLoading && attendees.length > 0 && (
+            {!attendeesLoading && !isTabSkeletonVisible && attendees.length > 0 && (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50 text-left">
@@ -1252,7 +1567,7 @@ const fetchRatings = useCallback(async () => {
         
       )}
 {activeTab === 'ratings' && (
-  <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <section className={`mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-500 delay-200 ${tabRevealClass}`}>
     
     {/* HEADER */}
     <div className="flex items-center justify-between mb-4">
@@ -1266,18 +1581,36 @@ const fetchRatings = useCallback(async () => {
       </div>
     </div>
 
-    {ratingsLoading && <p className="text-sm text-slate-500">Loading...</p>}
+    {(ratingsLoading || isTabSkeletonVisible) && (
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={`ratings-skeleton-${index}`} className="rounded-xl border bg-slate-50 p-4">
+            <div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="h-4 w-32 rounded dashboard-skeleton-shimmer" />
+                  <div className="mt-2 h-3 w-24 rounded dashboard-skeleton-shimmer" />
+                </div>
+                <div className="h-3 w-16 rounded dashboard-skeleton-shimmer" />
+              </div>
+              <div className="mt-3 h-3 w-40 rounded dashboard-skeleton-shimmer" />
+              <div className="mt-3 h-4 w-full rounded dashboard-skeleton-shimmer" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
 
-    {!ratingsLoading && ratings.length === 0 && (
+    {!ratingsLoading && !isTabSkeletonVisible && ratings.length === 0 && (
       <p className="text-sm text-slate-500">Belum ada review</p>
     )}
 
-    {!ratingsLoading && ratings.length > 0 && (
+    {!ratingsLoading && !isTabSkeletonVisible && ratings.length > 0 && (
       <div className="space-y-3">
-        {ratings.map((r) => (
+        {ratings.map((r, index) => (
           <div
             key={r.id}
-            className="p-4 border rounded-xl hover:shadow-md transition bg-slate-50"
+            className={`p-4 border rounded-xl hover:shadow-md bg-slate-50 ${getItemRevealClass(index)}`}
           >
             {/* TOP */}
             <div className="flex justify-between items-center">

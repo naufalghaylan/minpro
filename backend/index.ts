@@ -3,11 +3,13 @@ import express, { type Request, type Response, type NextFunction } from 'express
 import cors from 'cors';
 import multer from 'multer';
 import cron from 'node-cron';
+import { RoleType } from '@prisma/client';
 import authRoutes from './src/routes/authRoutes';
 import organizerDashboardRoutes from './src/routes/organizerDashboardRoutes';
 import { AppError } from './src/errors/app.error';
 import { prisma } from './src/configs/prisma';
 import { authMiddleware } from './src/middlewares/authMiddleware';
+import { roleGuard } from './src/middlewares/roleGuard';
 import { startRewardExpirationCron } from './src/cron/rewardExpirationCron';
 import { AuthRequest } from './src/types/auth';
 import { decideOrganizerTransaction } from './src/services/organizerDashboardService';
@@ -200,15 +202,12 @@ app.get("/events/:id", async (req, res) => {
 app.post(
   "/events",
   authMiddleware,
+  roleGuard([RoleType.EVENT_ORGANIZER]),
   upload.array("images"), 
   async (req: AuthRequest, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
-      }
-
-      if (req.user.role !== "EVENT_ORGANIZER") {
-        return res.status(403).json({ message: "Forbidden" });
       }
 
 const {
@@ -307,7 +306,7 @@ app.get('/transactions/:id', authMiddleware, async (req: AuthRequest, res) => {
       walletUsed: trx.walletAmountUsed,
       voucherDiscount: trx.voucherDiscountUsed,
       couponDiscount: trx.couponDiscountUsed,
-      referralDiscount: trx.referralDiscountUsed,
+      referralDiscount: (trx as any).referralDiscountUsed ?? 0,
 
       order: trx.order,
     });
@@ -351,10 +350,11 @@ app.get("/transactions", authMiddleware, async (req: AuthRequest, res) => {
 app.get(
   "/admin/transactions",
   authMiddleware,
+  roleGuard([RoleType.EVENT_ORGANIZER]),
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "EVENT_ORGANIZER") {
-        return res.status(403).json({ message: "Forbidden" });
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
 
       const data = await prisma.transaction.findMany({
@@ -388,10 +388,11 @@ app.get(
 app.post(
   "/admin/transactions/:id/approve",
   authMiddleware,
+  roleGuard([RoleType.EVENT_ORGANIZER]),
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "EVENT_ORGANIZER") {
-        return res.status(403).json({ message: "Forbidden" });
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
 
       const id = Array.isArray(req.params.id)
@@ -409,10 +410,11 @@ app.post(
 app.post(
   "/admin/transactions/:id/reject",
   authMiddleware,
+  roleGuard([RoleType.EVENT_ORGANIZER]),
   async (req: AuthRequest, res) => {
     try {
-      if (req.user?.role !== "EVENT_ORGANIZER") {
-        return res.status(403).json({ message: "Forbidden" });
+      if (!req.user?.id) {
+        return res.status(401).json({ message: "Unauthorized" });
       }
 
       const id = Array.isArray(req.params.id)
@@ -977,23 +979,44 @@ app.post(
 // ==================
 // ❌ CANCEL
 // ==================
-app.post('/transactions/:id/cancel', async (req, res) => {
+app.post('/transactions/:id/cancel', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const idParam = req.params.id;
+    const id = Array.isArray(idParam) ? idParam[0] : idParam;
+
+    if (!id) {
+      return res.status(400).json({ message: 'Transaction ID is required' });
+    }
 
     const trx = await prisma.transaction.findUnique({
       where: { id },
-      include: { order: true },
     });
 
     if (!trx) return res.status(404).json({ message: 'Not found' });
 
-    if (trx.order) {
+    if (trx.userId !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    if (['DONE', 'REJECTED', 'CANCELLED', 'EXPIRED'].includes(trx.status)) {
+      return res.status(400).json({ message: 'Transaction cannot be cancelled' });
+    }
+
+    const order = await prisma.orders.findUnique({
+      where: { transactionId: trx.id },
+      select: { eventId: true, quantity: true },
+    });
+
+    if (order) {
       await prisma.events.update({
-        where: { id: trx.order.eventId },
+        where: { id: order.eventId },
         data: {
           availableSeats: {
-            increment: trx.order.quantity,
+            increment: order.quantity,
           },
         },
       });
