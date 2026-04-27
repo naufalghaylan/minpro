@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Header from '../../components/navbar';
@@ -36,6 +36,10 @@ import { AttendeesTab } from './components/AttendeesTab';
 export default function OrganizerDashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [isPageVisible, setIsPageVisible] = useState(false);
+  const [isTabContentVisible, setIsTabContentVisible] = useState(false);
+  const [isTabSkeletonVisible, setIsTabSkeletonVisible] = useState(false);
+  const [shouldStaggerTabContent, setShouldStaggerTabContent] = useState(false);
+  const hasMountedTabTransition = useRef(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<OrganizerEventItem | null>(null);
   const [transactionStatusFilter, setTransactionStatusFilter] = useState<OrganizerTransactionStatus | 'ALL'>('PAID');
@@ -179,12 +183,40 @@ export default function OrganizerDashboardPage() {
     return Array.from({ length: 5 }, (_, index) => latestYear - 4 + index);
   }, [statistics, statsQuery.year]);
 
-  const tabRevealClass = isPageVisible
+  const tabRevealClass = isTabContentVisible
     ? 'translate-y-0 opacity-100 blur-0'
-    : 'translate-y-2 opacity-0 blur-[3px] pointer-events-none';
+    : 'translate-y-1 opacity-0 blur-[1px] pointer-events-none';
 
-  const getItemRevealClass = () => {
-    return ['transition-all', 'duration-500', 'ease-out', tabRevealClass].join(' ');
+  const getItemStaggerClass = (index: number) => {
+    const staggerClasses = [
+      'dashboard-stagger-0',
+      'dashboard-stagger-1',
+      'dashboard-stagger-2',
+      'dashboard-stagger-3',
+      'dashboard-stagger-4',
+      'dashboard-stagger-5',
+    ];
+
+    return staggerClasses[index % staggerClasses.length];
+  };
+
+  const getItemRevealClass = (index: number) => {
+    const baseClasses = [
+      'transition-all',
+      'duration-700',
+      'ease-[cubic-bezier(0.22,1,0.36,1)]',
+      'will-change-transform',
+    ];
+
+    if (!shouldStaggerTabContent && isTabContentVisible) {
+      return [...baseClasses, 'translate-y-0 opacity-100 blur-0'].join(' ');
+    }
+
+    return [
+      ...baseClasses,
+      getItemStaggerClass(index),
+      isTabContentVisible ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-2 opacity-0 blur-[1.5px]',
+    ].join(' ');
   };
 
   const visibleStatisticsSeries = useMemo(() => {
@@ -271,6 +303,29 @@ export default function OrganizerDashboardPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, []);
+
+  useEffect(() => {
+    if (!hasMountedTabTransition.current) {
+      hasMountedTabTransition.current = true;
+      setIsTabContentVisible(true);
+      setShouldStaggerTabContent(false);
+      return;
+    }
+
+    setIsTabSkeletonVisible(true);
+    setIsTabContentVisible(false);
+    setShouldStaggerTabContent(true);
+
+    const timeoutId = window.setTimeout(() => {
+      setIsTabSkeletonVisible(false);
+      setIsTabContentVisible(true);
+      setShouldStaggerTabContent(false);
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeTab]);
 
   useEffect(() => {
     const now = new Date();
@@ -414,7 +469,7 @@ export default function OrganizerDashboardPage() {
             inset: 0;
             transform: translateX(-100%);
             background-image: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.72) 45%, transparent 100%);
-            animation: dashboardShimmer 1.35s ease-in-out infinite;
+            animation: dashboardShimmer 1.6s ease-in-out infinite;
           }
 
           @keyframes dashboardShimmer {
@@ -423,12 +478,12 @@ export default function OrganizerDashboardPage() {
             }
           }
 
-          .dashboard-stagger-0 { transition-delay: 110ms; }
-          .dashboard-stagger-1 { transition-delay: 170ms; }
-          .dashboard-stagger-2 { transition-delay: 230ms; }
-          .dashboard-stagger-3 { transition-delay: 290ms; }
-          .dashboard-stagger-4 { transition-delay: 350ms; }
-          .dashboard-stagger-5 { transition-delay: 410ms; }
+          .dashboard-stagger-0 { transition-delay: 80ms; }
+          .dashboard-stagger-1 { transition-delay: 140ms; }
+          .dashboard-stagger-2 { transition-delay: 200ms; }
+          .dashboard-stagger-3 { transition-delay: 260ms; }
+          .dashboard-stagger-4 { transition-delay: 320ms; }
+          .dashboard-stagger-5 { transition-delay: 380ms; }
         `}
       </style>
       <Header />
@@ -501,7 +556,7 @@ export default function OrganizerDashboardPage() {
           <OverviewTab
             cards={overviewCards}
             isLoading={overviewLoading}
-            isTabSkeletonVisible={false}
+            isTabSkeletonVisible={isTabSkeletonVisible}
             tabRevealClass={tabRevealClass}
             getItemRevealClass={getItemRevealClass}
           />
@@ -511,7 +566,7 @@ export default function OrganizerDashboardPage() {
           <EventsTab
             events={events}
             isLoading={eventsLoading}
-            isTabSkeletonVisible={false}
+            isTabSkeletonVisible={isTabSkeletonVisible}
             tabRevealClass={tabRevealClass}
             getItemRevealClass={getItemRevealClass}
             onReload={() => {
@@ -530,7 +585,7 @@ export default function OrganizerDashboardPage() {
             transactionMeta={transactionMeta}
             transactions={transactions}
             transactionsLoading={transactionsLoading}
-            isTabSkeletonVisible={false}
+            isTabSkeletonVisible={isTabSkeletonVisible}
             tabRevealClass={tabRevealClass}
             getItemRevealClass={getItemRevealClass}
             decisionReasonById={decisionReasonById}
@@ -581,7 +636,7 @@ export default function OrganizerDashboardPage() {
             selectedStatsEventId={selectedStatsEventId}
             statistics={statistics}
             statisticsLoading={statisticsLoading}
-            isTabSkeletonVisible={false}
+            isTabSkeletonVisible={isTabSkeletonVisible}
             tabRevealClass={tabRevealClass}
             yearlyStatisticsTicks={yearlyStatisticsTicks}
             visibleStatisticsSeries={visibleStatisticsSeries}
@@ -605,7 +660,7 @@ export default function OrganizerDashboardPage() {
             selectedAttendeeEventId={selectedAttendeeEventId}
             attendees={attendees}
             attendeesLoading={attendeesLoading}
-            isTabSkeletonVisible={false}
+            isTabSkeletonVisible={isTabSkeletonVisible}
             tabRevealClass={tabRevealClass}
             onSelectedAttendeeEventIdChange={setSelectedAttendeeEventId}
             onLoadAttendees={() => {
@@ -619,7 +674,7 @@ export default function OrganizerDashboardPage() {
             ratings={ratings}
             avgRating={avgRating}
             isLoading={ratingsLoading}
-            isTabSkeletonVisible={false}
+            isTabSkeletonVisible={isTabSkeletonVisible}
             tabRevealClass={tabRevealClass}
             getItemRevealClass={getItemRevealClass}
           />
