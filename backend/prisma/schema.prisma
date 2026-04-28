@@ -7,63 +7,207 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String    @db.VarChar(255)
-  username  String    @unique @db.VarChar(100)
-  email     String    @unique @db.VarChar(100)
-  password  String    @db.VarChar(500)
-  bio       String?   @db.VarChar(500)
-  role      RoleType
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  events    events[]
-  orders    orders[]
-  wallets   wallets?
-
+  id           String    @id @default(uuid())
+  name         String    @db.VarChar(255)
+  username     String    @unique @db.VarChar(100)
+  email        String    @unique @db.VarChar(100)
+  password     String    @db.VarChar(500)
+  bio          String?   @db.VarChar(500)
+  profileImageUrl String? @db.VarChar(500)
+  role         RoleType
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  referralCode String    @unique @db.VarChar(50)
+  referredBy   String?
+  events       events[]
+  orders       orders[]
+  users        User?     @relation("usersTousers", fields: [referredBy], references: [id])
+  other_users  User[]    @relation("usersTousers")
+  wallets      wallets?
+  coupons      coupons[]
+  transactions transaction[]
+  passwordResetTokens password_reset_tokens[]
+  reviews reviews[]
+  refreshTokens refresh_tokens[]
+  @@index([referredBy])
   @@map("users")
 }
 
-model event_images {
-  id      String @id
-  eventId String
-  url     String
-  events  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+model password_reset_tokens {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model refresh_tokens {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash") @db.VarChar(500)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 model events {
-  id               String         @id
+  id               String         @id @default(uuid())
   name             String         @unique @db.VarChar(255)
+  description      String?
+
+  pricingType      String         @default("PAID") // FREE | PAID
   price            Float
   totalSeats       Int
   availableSeats   Int
+
+  eventDate        DateTime?
+  startTime        String?
+  endTime          String?
+
+  location         String?
+  city             String?
+
   eventOrganizerId String
   created_at       DateTime       @default(now())
   deleted_at       DateTime?
-  updated_at       DateTime
+  updated_at       DateTime       @updatedAt
+
+  discountType     String?        // PERCENT | FIXED
+  discountValue    Int?
+  discountStart    DateTime?
+  discountEnd      DateTime?
+
   event_images     event_images[]
   users            User           @relation(fields: [eventOrganizerId], references: [id])
   orders           orders[]
+  vouchers vouchers[]
+  reviews reviews[]
 }
 
+model event_images {
+  id      String @id @default(uuid())
+  eventId String
+  url     String
+  event  events @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+model vouchers {
+  id            String   @id @default(uuid())
+  code          String   @unique
+
+  discountType  String   // PERCENT | FIXED
+  discountValue Int
+
+  quota         Int?
+  used          Int      @default(0)
+
+  startDate     DateTime
+  endDate       DateTime
+
+  // 🔥 RELASI KE EVENT
+  eventId       String
+  event         events   @relation(fields: [eventId], references: [id])
+
+  created_at    DateTime @default(now())
+}
+model reviews {
+  id        String   @id @default(uuid())
+
+  rating    Int      // 1 - 5
+  comment   String?
+
+  userId    String
+  eventId   String
+
+  user      User     @relation(fields: [userId], references: [id])
+  event     events   @relation(fields: [eventId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, eventId]) // 🔥 1 user cuma bisa review 1x
+}
 model orders {
-  id          String      @id
-  customerId  String
-  eventId     String
-  quantity    Int
-  totalAmount Float
-  status      StatusOrder @default(PENDING)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime
-  users       User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  events      events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id            String   @id @default(uuid())
+  customerId    String
+  eventId       String
+  quantity      Int
+  totalAmount   Float
+  transactionId String   @unique
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  price       Int @default(0)
+  finalPrice  Int @default(0)
+
+  // 🔥 TAMBAHAN
+  referralCodeUsed String?   // kode yang dipakai
+  referralDiscount Int @default(0)
+
+  users         User        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  event         events      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  transaction   transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+}
+model transaction {
+  id           String   @id @default(uuid())
+  userId       String
+  totalAmount  Float
+  walletAmountUsed Int  @default(0)
+  couponCodeUsed   String? @db.VarChar(50)
+  couponDiscountUsed Int @default(0)
+  voucherCodeUsed  String? @db.VarChar(50)
+  voucherDiscountUsed Int @default(0)
+  paymentProof String?
+  status       StatusOrder @default(PENDING)
+  decisionNote String? @db.VarChar(255)
+  decisionAt   DateTime?
+  paidAt       DateTime? @map("paid_at")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  expiredAt    DateTime?
+    referralCodeUsed      String?   // ✅ TAMBAH
+  referralDiscountUsed  Int      @default(0)
+
+  user         User   @relation(fields: [userId], references: [id])
+  order        orders?
+}
+model wallets {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  usedAt    DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model wallets {
-  id      String @id
-  userId  String @unique
-  balance Float
-  users   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+model coupons {
+  id        String       @id @default(uuid())
+  userId    String
+  code      String?      @unique @db.VarChar(50)
+  source    CouponSource
+  amount    Int
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  users     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("coupons")
 }
 
 enum RoleType {
@@ -78,4 +222,11 @@ enum StatusOrder {
   EXPIRED
   DONE
   PAID
+}
+
+enum CouponSource {
+  REFERRAL_SIGNUP
+  EVENT_PROMOTION
+  ORDER_REFUND
+  MANUAL_GRANT
 }
