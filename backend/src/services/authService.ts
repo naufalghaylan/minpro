@@ -6,7 +6,7 @@ import { prisma } from '../configs/prisma';
 import { comparePassword, hashPassword } from './passwordService';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from './jwtService';
 import { sendResetPasswordEmail } from './emailService';
-import { uploadProfileImageToCloudinary } from './cloudinaryService';
+import { deleteProfileImageFromCloudinary, uploadProfileImageToCloudinary } from './cloudinaryService';
 import type { ChangePasswordInput, ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput, UpdateProfileInput } from '../validations/authValidation';
 import type { LogoutInput, RefreshTokenInput } from '../validations/authValidation';
 
@@ -377,6 +377,31 @@ export const updateUserProfileImage = async (userId: string, profileImageFile: E
     where: { id: userId },
     data: {
       profileImageUrl: uploadResult.secureUrl,
+    },
+  });
+
+  return sanitizeUser(updatedUser);
+};
+
+export const deleteUserProfileImage = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'User not found');
+  }
+
+  if (!user.profileImageUrl || user.profileImageUrl.trim().length === 0) {
+    throw new AppError(400, 'tidak ada foto profil');
+  }
+
+  await deleteProfileImageFromCloudinary(user.profileImageUrl);
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      profileImageUrl: null,
     },
   });
 
