@@ -252,7 +252,9 @@ export default function OrderPage() {
   const handleCheckout = async () => {
     if (!token) {
       alert("Harap login dulu!");
-      navigate("/login");
+      navigate("/login", {
+        state: { from: `/order/${eventId}` },
+      });
       return;
     }
 

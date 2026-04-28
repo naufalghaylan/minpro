@@ -35,11 +35,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route
             path="/order/:eventId"
-            element={
-              <RequireAuth allowedRoles={["CUSTOMER"]}>
-                <OrderPage />
-              </RequireAuth>
-            }
+            element={<OrderPage />}
           />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/login" element={<LoginPage />} />
