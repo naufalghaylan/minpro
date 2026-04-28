@@ -20,6 +20,7 @@ type LoginInput = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const successMessage = (location.state as { message?: string } | null)?.message ?? null;

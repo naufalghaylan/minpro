@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import Header from "../../components/navbar";
 import api from "../../api";
 import { useAuthStore } from "../../store/auth";
@@ -8,6 +8,7 @@ import { getWalletAndCoupons, type Coupon } from "../../api/auth";
 export default function OrderPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const token = useAuthStore((s) => s.token);
 
   const [event, setEvent] = useState<any>(null);
