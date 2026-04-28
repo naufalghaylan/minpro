@@ -10,6 +10,7 @@ import {
   requestPasswordReset,
   refreshAccessToken,
   resetUserPassword,
+  deleteUserProfileImage,
   updateUserProfile,
   updateUserProfileImage,
 } from '../services/authService';
@@ -106,6 +107,19 @@ export const updateProfilePicture = async (req: AuthRequest, res: Response) => {
 
     const user = await updateUserProfileImage(req.user.id, req.file);
     return res.status(200).json({ message: 'Profile picture updated successfully', user });
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+export const deleteProfilePicture = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const user = await deleteUserProfileImage(req.user.id);
+    return res.status(200).json({ message: 'Profile picture deleted successfully', user });
   } catch (error) {
     return handleError(res, error);
   }

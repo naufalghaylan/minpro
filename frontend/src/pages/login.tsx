@@ -20,11 +20,10 @@ type LoginInput = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const navigate = useNavigate();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const successMessage = (location.state as { message?: string } | null)?.message ?? null;
-  const from = (location.state as { from?: string } | null)?.from;
+  const redirectTo = (location.state as { from?: string } | null)?.from ?? '/';
   const setAuth = useAuthStore((s) => s.setAuth);
   const {
     register,
@@ -43,7 +42,7 @@ export default function LoginPage() {
       localStorage.setItem('accessToken', res.data.accessToken);
       localStorage.setItem('refreshToken', res.data.refreshToken);
       // opsional: localStorage.setItem('user', JSON.stringify(res.data.user));
-      navigate(from || '/', { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
       if (axios.isAxiosError<{ message?: string }>(err)) {
         setError(err.response?.data?.message || 'Login gagal, silakan cek data Anda.');

@@ -60,6 +60,23 @@ const uploadBufferToCloudinary = async (fileBuffer: Buffer, options: UploadImage
   };
 };
 
+const extractPublicIdFromCloudinaryUrl = (imageUrl: string) => {
+  const url = new URL(imageUrl);
+  const uploadMarker = '/upload/';
+  const uploadIndex = url.pathname.indexOf(uploadMarker);
+
+  if (uploadIndex === -1) {
+    throw new Error('Invalid Cloudinary image URL');
+  }
+
+  let publicId = url.pathname.slice(uploadIndex + uploadMarker.length);
+
+  publicId = publicId.replace(/^v\d+\//, '');
+  publicId = publicId.replace(/\.[^.\/]+$/, '');
+
+  return decodeURIComponent(publicId.replace(/^\//, ''));
+};
+
 export const uploadProfileImageToCloudinary = async (fileBuffer: Buffer, userId: string, username: string) => {
   const safeFileName = buildFileName(username);
   const publicId = `${safeFileName}-${Date.now()}-${randomUUID()}`;
@@ -70,6 +87,18 @@ export const uploadProfileImageToCloudinary = async (fileBuffer: Buffer, userId:
     maxWidth: 1024,
     maxHeight: 1024,
   });
+};
+
+export const deleteProfileImageFromCloudinary = async (imageUrl: string) => {
+  const publicId = extractPublicIdFromCloudinaryUrl(imageUrl);
+  const result = await cloudinary.uploader.destroy(publicId, {
+    resource_type: 'image',
+    invalidate: true,
+  });
+
+  if (result.result !== 'ok') {
+    throw new Error('Failed to delete image from Cloudinary');
+  }
 };
 
 export const uploadPaymentProofToCloudinary = async (fileBuffer: Buffer) => {

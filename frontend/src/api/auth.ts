@@ -49,6 +49,11 @@ export type UpdateProfilePictureResponse = {
   user: AuthUser;
 };
 
+export type DeleteProfilePictureResponse = {
+  message: string;
+  user: AuthUser;
+};
+
 export type ChangePasswordRequest = {
   currentPassword: string;
   newPassword: string;
@@ -152,6 +157,11 @@ export const updateProfilePicture = async (
 
   const response = await api.patch<UpdateProfilePictureResponse>('/auth/profile/picture', formData);
 
+  return response.data;
+};
+
+export const deleteProfilePicture = async (): Promise<DeleteProfilePictureResponse> => {
+  const response = await api.delete<DeleteProfilePictureResponse>('/auth/profile/picture');
   return response.data;
 };
 
