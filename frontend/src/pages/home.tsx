@@ -10,7 +10,7 @@ export default function Home() {
   const [time, setTime] = useState(Date.now());
 
   const navigate = useNavigate();
-  const BASE_URL = "http://localhost:3000";
+  const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000");
 
   useEffect(() => {
     getEvents();
@@ -28,7 +28,7 @@ export default function Home() {
       setLoading(true);
 
       const res = await axios.get<Event[]>(
-        "http://localhost:3000/events"
+        `${import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000")}/events`
       );
 
       // 🔥 FILTER + SORT DISKON TERBESAR + ENDED AT BOTTOM
