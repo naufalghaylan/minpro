@@ -11,7 +11,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(false);
   const [loadingClick, setLoadingClick] = useState<string | null>(null);
 
-  const BASE_URL = "http://localhost:3000";
+  const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000");
   const navigate = useNavigate();
 console.log(events);
   // 🔥 countdown trigger re-render tiap detik (WIB timezone)
@@ -41,7 +41,7 @@ console.log(events);
       setLoading(true);
 
       const res = await axios.get<Event[]>(
-        "http://localhost:3000/events",
+        `${import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000")}/events`,
         {
           params: { search: debouncedSearch },
         }
