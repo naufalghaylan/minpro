@@ -113,8 +113,15 @@ app.use("/uploads", express.static("uploads"));
 // ==================
 // ROOT
 // ==================
-app.get('/', (_req, res) => {
-  res.send('API is running 🚀');
+app.get('/', async (_req, res) => {
+  try {
+    // Ping database agar Supabase tidak tertidur (pause)
+    await prisma.$queryRaw`SELECT 1`;
+    res.send('API is running 🚀 & DB is connected ✅');
+  } catch (error) {
+    console.error('Database connection failed:', error);
+    res.status(500).send('API is running but DB failed ❌');
+  }
 });
 
 // ==================
