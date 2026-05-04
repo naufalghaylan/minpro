@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 import {
   changePassword,
+  deleteProfilePicture,
   updateProfile,
   updateProfilePicture,
   getWalletAndCoupons,
@@ -321,6 +322,52 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDeleteProfileImage = async () => {
+    if (!user?.profileImageUrl) {
+      setProfilePictureError('tidak ada foto profil');
+      return;
+    }
+
+    const confirmed = window.confirm('Hapus foto profil ini?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSavingProfilePicture(true);
+    setProfilePictureError(null);
+    setProfilePictureMessage(null);
+
+    try {
+      const response = await deleteProfilePicture();
+
+      if (token) {
+        setAuth(
+          {
+            ...response.user,
+            referredBy: user?.referredBy ?? null,
+          },
+          token,
+        );
+      }
+
+      setProfilePictureMessage(response.message || 'Foto profil berhasil dihapus.');
+      setSelectedProfileImage(null);
+      setIsChangeProfilePictureMode(false);
+      if (profileImageInputRef.current) {
+        profileImageInputRef.current.value = '';
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError<ErrorResponse>(err)) {
+        setProfilePictureError(err.response?.data?.message || 'Gagal menghapus foto profil.');
+      } else {
+        setProfilePictureError('Gagal menghapus foto profil.');
+      }
+    } finally {
+      setSavingProfilePicture(false);
+    }
+  };
+
   const displayProfileImage = selectedProfileImagePreview ?? user?.profileImageUrl ?? null;
 
   const onSubmitPassword = async (data: ChangePasswordInput) => {
@@ -481,14 +528,24 @@ export default function ProfilePage() {
                 ) : (
                   <div className="space-y-2 sm:space-y-3">
                     {user?.profileImageUrl && !isChangeProfilePictureMode && (
-                      <button
-                        type="button"
-                        onClick={() => setIsChangeProfilePictureMode(true)}
-                        disabled={savingProfilePicture}
-                        className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-blue-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-                      >
-                        Ganti Foto Profil
-                      </button>
+                      <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setIsChangeProfilePictureMode(true)}
+                          disabled={savingProfilePicture}
+                          className="inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-white transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:bg-blue-300 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                        >
+                          Ganti Foto Profil
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeleteProfileImage}
+                          disabled={savingProfilePicture}
+                          className="inline-flex w-full items-center justify-center rounded-2xl border border-rose-200 bg-white px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-rose-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-rose-300 hover:bg-rose-50 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                        >
+                          {savingProfilePicture ? 'Memproses...' : 'Hapus Foto Profil'}
+                        </button>
+                      </div>
                     )}
 
                     {isChangeProfilePictureMode && (
@@ -635,7 +692,7 @@ export default function ProfilePage() {
             </section>
 
             <section
-              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-[360ms] hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-360 hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
             >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Keamanan</p>
@@ -710,7 +767,7 @@ export default function ProfilePage() {
 
             {/* Wallet Section */}
             <section
-              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-[440ms] hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-440 hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
             >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Wallet</p>
@@ -784,7 +841,7 @@ export default function ProfilePage() {
 
             {/* Coupons Section */}
             <section
-              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-[520ms] hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
+              className={`rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-700 delay-520 hover:-translate-y-0.5 hover:shadow-md sm:p-6 ${revealSectionClass}`}
             >
               <div className="mb-4 sm:mb-6">
                 <p className="text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-blue-600">Coupons</p>

@@ -7,7 +7,7 @@ Dokumen ini menjelaskan endpoint backend untuk upload dan update foto profil use
 - Local development: http://localhost:3000
 - Route group: /auth
 
-## Endpoint
+## Endpoint Upload/Update
 
 - Method: PATCH
 - Path: /auth/profile/picture
@@ -15,7 +15,7 @@ Dokumen ini menjelaskan endpoint backend untuk upload dan update foto profil use
 - Content-Type: multipart/form-data
 - Form field file: profileImage
 
-## Tujuan Endpoint
+## Tujuan Endpoint Upload/Update
 
 - Menerima file gambar dari user.
 - Validasi keamanan upload (mime type + ukuran file).
@@ -125,7 +125,7 @@ Status: 200 OK
 }
 ```
 
-## Error Responses
+## Error Responses Upload/Update
 
 ### 1) Token tidak ada / tidak valid
 Status: 401 Unauthorized
@@ -180,6 +180,76 @@ Status: 404 Not Found
 }
 ```
 
+## Endpoint Delete
+
+- Method: DELETE
+- Path: /auth/profile/picture
+- Auth: Required (Bearer JWT)
+
+## Tujuan Endpoint Delete
+
+- Menghapus foto profil user dari Cloudinary.
+- Mengosongkan kolom `users.profileImageUrl`.
+
+## Contoh Request (cURL)
+
+```bash
+curl --location --request DELETE 'http://localhost:3000/auth/profile/picture' \
+--header 'Authorization: Bearer <accessToken>'
+```
+
+## Success Response Delete
+
+Status: 200 OK
+
+```json
+{
+  "message": "Profile picture deleted successfully",
+  "user": {
+    "id": "uuid",
+    "name": "Budi",
+    "username": "budi123",
+    "email": "budi@example.com",
+    "bio": "Saya suka konser",
+    "profileImageUrl": null,
+    "role": "CUSTOMER",
+    "referralCode": "ABCD1234",
+    "createdAt": "2026-04-16T10:00:00.000Z",
+    "updatedAt": "2026-04-16T10:10:00.000Z",
+    "deletedAt": null
+  }
+}
+```
+
+## Error Responses Delete
+
+### 1) Token tidak ada / tidak valid
+Status: 401 Unauthorized
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+### 2) Foto profil belum ada
+Status: 400 Bad Request
+
+```json
+{
+  "message": "tidak ada foto profil"
+}
+```
+
+### 3) User tidak ditemukan
+Status: 404 Not Found
+
+```json
+{
+  "message": "User not found"
+}
+```
+
 ## Alur Backend Singkat
 
 1. Request masuk ke route PATCH /auth/profile/picture.
@@ -191,6 +261,16 @@ Status: 404 Not Found
 7. Cloudinary memberi nama file baru berdasarkan username + timestamp.
 8. Service update users.profileImageUrl di database.
 9. Response user terbaru dikembalikan ke client.
+
+### Delete flow
+
+1. Request masuk ke route DELETE /auth/profile/picture.
+2. authMiddleware memverifikasi access token.
+3. Service mengambil user berdasarkan id.
+4. Jika `profileImageUrl` kosong, request ditolak dengan pesan `tidak ada foto profil`.
+5. Jika ada, service menghapus file dari Cloudinary berdasarkan URL yang tersimpan.
+6. Database diupdate sehingga `users.profileImageUrl` menjadi `null`.
+7. Response user terbaru dikembalikan ke client.
 
 ## Related Backend Files
 

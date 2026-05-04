@@ -76,7 +76,7 @@ export default function AdminTransactionPage() {
             {/* 🔥 BUKTI BAYAR */}
             {trx.paymentProof && (
               <img
-               src={`http://localhost:3000/uploads/${trx.paymentProof}`}
+               src={`${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"}/uploads/${trx.paymentProof}`}
                 alt="proof"
                 className="w-40 rounded"
               />

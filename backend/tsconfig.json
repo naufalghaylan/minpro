@@ -2,8 +2,8 @@
   "compilerOptions": {
     "target": "esnext",
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "module": "commonjs",
+    "moduleResolution": "node",
     "rootDir": ".",
     "outDir": "dist",
     "strict": true,

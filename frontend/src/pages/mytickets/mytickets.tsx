@@ -4,7 +4,7 @@ import { useAuthStore } from "../../store/auth";
 import { useNavigate } from "react-router-dom";
 import Header from "../../components/navbar";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000");
 
 export default function MyTicketsPage() {
   const token = useAuthStore((s) => s.token);
