@@ -95,9 +95,11 @@ export default function Header() {
         <div className="relative mx-auto flex w-full max-w-7xl items-center gap-3 px-3 py-3 sm:px-5 lg:px-8">
           <Link to="/" className="group shrink-0">
             <div className="flex items-center gap-3">
-              <div className="rounded-full border border-amber-200/40 bg-amber-100/10 px-2.5 py-1 text-[10px] font-semibold tracking-[0.22em] text-amber-200 uppercase">
-                Live
-              </div>
+              <img 
+                src="/animeku.id.svg" 
+                alt="Animeku.id Logo" 
+                className="h-10 w-auto transition group-hover:opacity-80"
+              />
               <div>
                 <p className="text-lg font-semibold leading-none tracking-[0.24em] text-slate-900 transition group-hover:text-amber-800 sm:text-xl">
                   ANIMEKU.ID
